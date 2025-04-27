@@ -1,14 +1,18 @@
-from bromium import Windriver
+from bromium import WinDriver
 
-driver = Windriver(10)
+# Create a WinDriver instance with a timeout value
+driver = WinDriver(timeout=5)
 
-# Get the screen size and scale
-screen_context = driver.get_screen_context()
-print(f"Screen Height: {screen_context.get_screen_height()},  Screen Width: {screen_context.get_screen_width()}, Screen Scale: {screen_context.get_screen_scale()}")
+# Get current cursor position
+x, y = driver.get_curser_pos()
+print(f"Cursor position: ({x}, {y})")
 
-# Get the current mouse position and the UI element at that position
-(x, y) = driver.get_curser_pos()
+# Get UI element at specific coordinates
 element = driver.get_ui_element(x, y)
-print(f"Element at ({x}, {y}): {element}")
+print(f"UI Element name: {element.get_name()}")
 
-
+# Get screen context information
+screen_context = driver.get_screen_context()
+print(f"Screen width: {screen_context.get_screen_width()}")
+print(f"Screen height: {screen_context.get_screen_height()}")
+print(f"Screen scale: {screen_context.get_screen_scale()}")
