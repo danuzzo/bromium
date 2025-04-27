@@ -9,11 +9,11 @@ Bromium is a Python library that provides bindings to interact with the Windows 
 - Get screen context information (size and scaling)
 - Cross-platform development using Rust with Python bindings
 
-## Installation
+<!-- ## Installation
 
 ```bash
 pip install bromium
-```
+``` -->
 
 ## Usage
 
@@ -98,8 +98,8 @@ maturin develop
 
 ## License
 
-[Add your license information here]
+Apache License 2.0
 
-## Contributing
+<!-- ## Contributing
 
-[Add contribution guidelines here]
+[Add contribution guidelines here] -->
