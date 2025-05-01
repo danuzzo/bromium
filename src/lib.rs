@@ -6,6 +6,8 @@
 
 mod windriver;
 mod context;
+mod xpath;
+mod bindings;
 
 use pyo3::prelude::*;
 

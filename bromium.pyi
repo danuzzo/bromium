@@ -78,7 +78,7 @@ class ScreenContext:
         """
         pass
 
-    def get_scale(self) -> float:
+    def get_screen_scale(self) -> float:
         """
         Returns the scale of the screen as a decimal number representing the percentage set in the Windows screen settings.
         

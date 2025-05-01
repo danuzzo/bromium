@@ -1,4 +1,5 @@
 use crate::context::ScreenContext;
+use crate::xpath::generate_xpath;
 
 
 use pyo3::prelude::*;
@@ -15,6 +16,7 @@ use uiautomation::{UIAutomation, UIElement};
 #[derive(Debug)]
 pub struct Element {
     name: String,
+    xpath: String,
     // hwnd: HWND,
 }
 
@@ -30,6 +32,10 @@ impl Element {
 
     pub fn get_name(&self) -> String {
         self.name.clone()
+    }
+
+    pub fn get_xpath(&self) -> String {
+        self.xpath.clone()
     }
     
 }
@@ -78,8 +84,9 @@ impl WinDriver {
         let uia = UIAutomation::new().unwrap();
 
         let name: String;
+        let xpath: String;
         let point = windows::Win32::Foundation::POINT { x, y };
-        let hwnd: HWND;
+        let hwnd: HWND;        
 
         unsafe {
             // let _res= GetCursorPos(&mut point);
@@ -90,15 +97,18 @@ impl WinDriver {
             match element {
                 Ok(e) => {
                     name = e.get_name().unwrap_or("".to_string());
+                    xpath = generate_xpath(x, y);
                 }
                 Err(_e) => {
                     name = "invalid hwnd".to_string();
+                    xpath = "no xpath found".to_string();
                 }
             }
         }
 
         PyResult::Ok(Element {
             name: name,
+            xpath: xpath,
         })
     }
 
