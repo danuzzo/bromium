@@ -8,8 +8,10 @@ mod windriver;
 mod context;
 mod xpath;
 mod bindings;
-
+mod commons;
+mod uiauto;
 use pyo3::prelude::*;
+
 
 
 /// A Python module implemented in Rust.

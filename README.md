@@ -11,7 +11,7 @@ Bromium is a Python library that provides bindings to interact with the Windows 
 
 <!-- ## Installation
 
-```bash
+```bash.\
 pip install bromium
 ``` -->
 
@@ -48,9 +48,9 @@ The main class for interacting with Windows UI elements.
 
 #### Methods
 
-- `__init__(timeout: int)`: Initialize the WinDriver with a timeout value in seconds
 - `get_curser_pos() -> tuple[int, int]`: Get current cursor coordinates
 - `get_ui_element(x: int, y: int) -> Element`: Get UI element at specified coordinates
+- `get_ui_element_by_xpath(xpath: str) -> Element`: Get UI element from an xpath
 - `get_screen_context() -> ScreenContext`: Get screen size and scaling information
 
 ### Element
@@ -60,6 +60,9 @@ Represents a Windows UI Automation element.
 #### Methods
 
 - `get_name() -> str`: Get the name of the UI element
+- `get_xpath() -> str`: Get the xpath of the UI element
+- `get_handle() -> int`: Get the window handle of the UI element    
+- `send_click()`: Send a left mouse click to the UI element
 
 ### ScreenContext
 

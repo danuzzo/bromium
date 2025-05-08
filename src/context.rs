@@ -79,21 +79,10 @@ fn get_screen_scale_factor() -> f32 {
         let dpi_awareness_process = GetDpiAwarenessContextForProcess(HANDLE(std::ptr::null_mut()));
         let _awareness_process = GetAwarenessFromDpiAwarenessContext(dpi_awareness_process);
 
-        // let awareness_fmt: String;
-        // let awareness = match awareness_process {
-        //     DPI_AWARENESS_PER_MONITOR_AWARE => "Per Monitor Aware",
-        //     _ => {
-        //         awareness_fmt = format!("Unknown DPI Awareness: {:?}", awareness_process);
-        //         awareness_fmt.as_str()
-        //         },
-        // };
-
         let mut dpi_x = 0;
         let mut dpi_y = 0;
         let _res = GetDpiForMonitor(monitor, MONITOR_DPI_TYPE {0: 0}, &mut dpi_x, &mut dpi_y);
 
-        // let x = GetSystemMetrics(SM_CXSCREEN);
-        // let y = GetSystemMetrics(SM_CYSCREEN);
         let scale_x = dpi_x as f32 / 96.0;
         let scale_y = dpi_y as f32 / 96.0;
         let scale = (scale_x + scale_y) / 2.0;

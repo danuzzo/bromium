@@ -14,6 +14,69 @@ class Element:
     - get_name(self) -> str: Returns the name of the UI element.
     """
     
+    def __init__(self, name: str) -> None:
+        """
+        Initializes the Element instance with the given name.
+        
+        Parameters:
+        - name (str): The name of the UI element.
+        """
+        pass  # Implementation not provided in the stub
+
+    def __repr__(self) -> str:
+        """
+        Returns a string representation of the Element instance.
+        
+        Returns:
+        - str: A string representation of the Element instance.
+        """
+        pass
+
+    def __str__(self) -> str:
+        """
+        Returns a string representation of the Element instance.
+        
+        Returns:
+        - str: A string representation of the Element instance.
+        """
+        pass
+
+    def get_name(self) -> str:
+        """
+        Returns the name of the UI element.
+        
+        Returns:
+        - str: The name of the UI element.
+        """
+        pass
+
+    def get_xpath(self) -> str:
+        """
+        Returns the xpath of the UI element.
+        
+        Returns:
+        - str: The xpath of the UI element.
+        """
+        pass
+
+    def get_handle(self) -> int:
+        """
+        Returns the handle of the UI element.
+        
+        Returns:
+        - int: The handle of the UI element.
+        """
+        pass
+
+    def send_click(self) -> None:
+        """
+        Sends a click event to the UI element.
+        
+        Returns:
+        - None: This method does not return any value.
+        """
+        pass
+    
 class ScreenContext:
     """
     A class representing the screen size and scale.
@@ -151,6 +214,18 @@ class WinDriver:
         
         Returns:
         - Element: The Windows UI Automation API UI element of the window at the given coordinates.
+        """
+        pass
+
+    def get_ui_element_by_xpath(self, xpath: str) -> 'Element':
+        """
+        Returns the Windows UI Automation API UI element of the window at the given xpath.
+        
+        Parameters:
+        - xpath (str): The xpath of the window.
+        
+        Returns:
+        - Element: The Windows UI Automation API UI element of the window at the given xpath.
         """
         pass
 

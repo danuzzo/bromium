@@ -1,4 +1,8 @@
+# The compiled output
 /target
+
+# Admin files
+*.xls*
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
