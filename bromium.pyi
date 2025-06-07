@@ -219,8 +219,17 @@ class WinDriver:
 
     def get_ui_element_by_xpath(self, xpath: str) -> 'Element':
         """
-        Returns the Windows UI Automation API UI element of the window at the given xpath.
-        
+        Returns the Windows UI Automation API UI element of the window at the given xpath. As an xpath
+        is a string representation of the UI element, it is not a valid xpath in the XML sense.
+        The search is following a three step approach:
+        1. A UI element is searched by its exact xpath.
+        2. If the xpath does not provide a unique way to identify an elemt, the element is 
+           searched for in the entire UI sub-tree.
+           2.1. If there is a single matching element, this element is returned (irrespective if the xpath is a 100% match).
+           2.2. If there are multiple matching elements, each found element is checked if the xpath
+                matches and if a matching xpath is found the respective element is returned.
+        3. if no matching element is found, an exception is raised.
+            
         Parameters:
         - xpath (str): The xpath of the window.
         

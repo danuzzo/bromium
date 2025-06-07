@@ -194,7 +194,7 @@ pub fn generate_xpath(x: i32, y: i32) -> String {
         let path_len = // unsafe {
             bindings::GetUiXPath(x, y, path_buffer.as_mut_ptr(), path_buffer.len() as i32);
         //};
-
+        println!("XPath length: {}", path_len);
         if path_len > 0 {
             let path = String::from_utf16_lossy(&path_buffer[0..path_len as usize]);
             

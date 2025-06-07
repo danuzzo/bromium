@@ -8,7 +8,7 @@ use crate::commons::execute_with_timeout;
 
 use pyo3::prelude::*;
 
-use windows::Win32::Foundation::HWND;
+use windows::Win32::Foundation::{HWND, RECT};
 use windows::Win32::UI::WindowsAndMessaging::{GetCursorPos, WindowFromPoint};
 
 use uiautomation::types::Handle;
@@ -24,6 +24,7 @@ pub struct Element {
     xpath: String,
     handle: isize,
     runtime_id: Vec<i32>,
+    bounding_rectangle: RECT,
 }
 
 
@@ -31,12 +32,18 @@ pub struct Element {
 impl Element {
 
     #[new]
-    pub fn new(name: String, xpath: String, handle: isize, runtime_id: Vec<i32>) -> Self {
-        Element { name, xpath, handle, runtime_id }
+    pub fn new(name: String, xpath: String, handle: isize, runtime_id: Vec<i32>, bounding_rectangle: (i32, i32, i32, i32)) -> Self {
+        let bounding_rectangle  = RECT {
+            left: bounding_rectangle.0,
+            top: bounding_rectangle.1,
+            right: bounding_rectangle.2,
+            bottom: bounding_rectangle.3,
+        };
+        Element { name, xpath, handle, runtime_id , bounding_rectangle}
     }
 
     pub fn __repr__(&self) -> PyResult<String> {
-        PyResult::Ok(format!("<Element name={}>", self.name))
+        PyResult::Ok(format!("<Element\nname='{}'\nhandle = {}\nruntime_id = {:?}\nbounding_rectangle = {:?}>", self.name, self.handle, self.runtime_id, self.bounding_rectangle))
     }
 
     pub fn __str__(&self) -> PyResult<String> {
@@ -86,6 +93,12 @@ impl Default for Element {
             xpath: String::new(),
             handle: 0,
             runtime_id: vec![],
+            bounding_rectangle: RECT {
+                left: 0,
+                top: 0,
+                right: 0,
+                bottom: 0,
+            },
         }
     }
 }
@@ -157,6 +170,7 @@ impl WinDriver {
         let hwnd: HWND;
         let handle: isize;
         let runtime_id: Vec<i32>;  
+        let bounding_rectangle: uiautomation::types::Rect;
         // let uia_element: Arc<Mutex<Option<UIElement>>>;
 
         unsafe {
@@ -173,11 +187,13 @@ impl WinDriver {
                     name = e.get_name().unwrap_or("".to_string());
                     xpath = generate_xpath(x, y);
                     runtime_id = e.get_runtime_id().unwrap_or_default();
+                    bounding_rectangle = e.get_bounding_rectangle().unwrap_or_default();
                 }
                 Err(_e) => {
                     name = "invalid hwnd".to_string();
                     xpath = "no xpath found".to_string();
                     runtime_id = vec![];
+                    bounding_rectangle = uiautomation::types::Rect::default();
                 }
             }
         }
@@ -187,6 +203,7 @@ impl WinDriver {
             xpath: xpath,
             handle: handle,
             runtime_id: runtime_id,
+            bounding_rectangle: RECT { left: bounding_rectangle.get_left(), top: bounding_rectangle.get_top(), right: bounding_rectangle.get_right(), bottom: bounding_rectangle.get_bottom() },
         })
     }
 
