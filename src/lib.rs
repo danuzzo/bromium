@@ -10,15 +10,41 @@ mod xpath;
 mod bindings;
 mod commons;
 mod uiauto;
-use pyo3::prelude::*;
+mod logging;
 mod app_control;
 
+use pyo3::prelude::*;
+use std::sync::Once;
 
+static INIT: Once = Once::new();
+
+/// Initialize logging and other global resources
+fn init_bromium() {
+    INIT.call_once(|| {
+        // Initialize logging system
+        if let Err(e) = logging::init_logging() {
+            eprintln!("Failed to initialize logging: {}", e);
+        }
+        
+        // Clean up old log files (keep last 10)
+        if let Err(e) = logging::cleanup_old_logs(10) {
+            log::warn!("Failed to clean up old log files: {}", e);
+        }
+        
+        log::info!("Bromium library initialized successfully");
+    });
+}
 
 /// A Python module implemented in Rust.
 #[pymodule]
 fn bromium(m: &Bound<'_, PyModule>) -> PyResult<()> {
+    // Initialize logging and cleanup on module import
+    init_bromium();
+    
     m.add_class::<windriver::WinDriver>()?;
     m.add_class::<windriver::Element>()?;
+    m.add_class::<context::ScreenContext>()?;
+    
+    log::info!("Bromium Python module loaded");
     Ok(())
 }

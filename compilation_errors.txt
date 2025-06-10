@@ -1,0 +1,2 @@
+    Checking bromium v0.2.0 (C:\Users\Dano\Desktop\GitHub\bromium)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.61s
