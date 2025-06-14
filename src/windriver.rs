@@ -1,5 +1,11 @@
+use std::thread;
+use std::sync::mpsc::{channel, Receiver, Sender};
+
+use pyo3::prelude::*;
+
 use crate::context::ScreenContext;
 use crate::uiauto::{get_ui_element_by_runtimeid, get_ui_element_by_xpath, get_element_by_xpath};
+use crate::uiexplore::UITree;
 use crate::xpath::generate_xpath;
 use crate::app_control::launch_or_activate_application;
 
@@ -7,9 +13,7 @@ use crate::app_control::launch_or_activate_application;
 use crate::commons::execute_with_timeout;
 
 
-use pyo3::prelude::*;
-
-use windows::Win32::Foundation::{HWND, RECT};
+use windows::Win32::Foundation::{HWND, RECT, POINT};
 use windows::Win32::UI::WindowsAndMessaging::{GetCursorPos, WindowFromPoint};
 
 use uiautomation::types::Handle;
@@ -126,17 +130,29 @@ fn convert_to_ui_element(element: &Element) -> Result<UIElement, uiautomation::E
 #[derive(Debug)]
 pub struct WinDriver {
     timeout_ms: u64,
+    ui_tree: UITree,
+    needs_update: bool,
 }
 
 #[pymethods]
 impl WinDriver {
     #[new]
     pub fn new(timeout_ms: u64) -> PyResult<Self> {
-        Ok(WinDriver { timeout_ms })
+        
+        // get the ui tree in a separate thread
+        let (tx, rx): (Sender<_>, Receiver<crate::UITree>) = channel();
+        thread::spawn(|| {
+            crate::get_all_elements(tx, None);
+        });
+        println!("Spawned separate thread to get ui tree");
+        
+        let ui_tree: UITree = rx.recv().unwrap();
+        
+        Ok(WinDriver { timeout_ms, ui_tree, needs_update: false })
     }
 
     fn __repr__(&self) -> PyResult<String> {
-        PyResult::Ok(format!("<WinDriver timeout={}>", self.timeout_ms))
+        PyResult::Ok(format!("<WinDriver timeout={}>, ui_tree={{object}}, needs_update={}", self.timeout_ms, self.needs_update))
     }
 
     fn __str__(&self) -> PyResult<String> {
@@ -160,6 +176,26 @@ impl WinDriver {
     }
 
     pub fn get_ui_element(&self, x: i32, y: i32) -> PyResult<Element> {
+    
+        let cursor_position = POINT { x, y };
+
+        if let Some(ui_element_in_tree) = crate::rectangle::get_point_bounding_rect(&cursor_position, self.ui_tree.get_elements()) {
+            let ui_element_props = ui_element_in_tree.get_element_props();
+            let element = Element::new(
+                ui_element_props.name.clone(),
+                generate_xpath(x, y),
+                ui_element_props.handle,
+                ui_element_props.runtime_id.clone(),
+                (ui_element_props.bounding_rect.get_left(), ui_element_props.bounding_rect.get_top(), ui_element_props.bounding_rect.get_right(), ui_element_props.bounding_rect.get_bottom())
+            );
+            return PyResult::Ok(element)
+        } else {
+            return PyResult::Err(pyo3::exceptions::PyValueError::new_err("Element not found at the given coordinates"))
+        }
+
+    }
+
+    fn get_ui_element_old(&self, x: i32, y: i32) -> PyResult<Element> {
 
         
         // Initialize UIAutomation

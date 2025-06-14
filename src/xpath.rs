@@ -14,20 +14,20 @@ use winnow::{
 // region: XPath generation
 
 // Extract runtime ID from the XPath
-#[allow(dead_code)]
-fn extract_runtime_id(xpath: &str) -> Option<String> {
-    let pattern = r#"\[RuntimeId="([^"]+)"\]"#;
-    let re = regex::Regex::new(pattern).ok()?;
+// #[allow(dead_code)]
+// fn extract_runtime_id(xpath: &str) -> Option<String> {
+//     let pattern = r#"\[RuntimeId="([^"]+)"\]"#;
+//     let re = regex::Regex::new(pattern).ok()?;
     
-    for line in xpath.lines() {
-        if let Some(captures) = re.captures(line) {
-            if let Some(runtime_id) = captures.get(1) {
-                return Some(runtime_id.as_str().to_string());
-            }
-        }
-    }
-    None
-}
+//     for line in xpath.lines() {
+//         if let Some(captures) = re.captures(line) {
+//             if let Some(runtime_id) = captures.get(1) {
+//                 return Some(runtime_id.as_str().to_string());
+//             }
+//         }
+//     }
+//     None
+// }
 
 
 
