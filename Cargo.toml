@@ -15,7 +15,7 @@ windows = { version = "0.61.1", features = ["Win32_Graphics_Gdi", "Win32_Foundat
 regex = "1.5"
 winapi = { version = "0.3", features = ["winuser"] } 
 winnow = "0.7.9"
-lazy_static = "1.5.0"
+# lazy_static = "1.5.0"
 
 [build-dependencies]
 cc = "1.0"

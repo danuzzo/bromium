@@ -1,5 +1,6 @@
 from bromium import WinDriver
-import time, os
+import time
+import os
 
 def test_app_launch():
     print("Testing bromium app launch/activation functionality...")

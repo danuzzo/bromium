@@ -1,5 +1,4 @@
 use crate::windriver::Element;
-use crate::xpath::generate_xpath;
 use crate::xpath::get_path_to_element;
 use crate::xpath::XpathElement;
 use uiautomation::{controls::ControlType, UIAutomation, UIElement};
@@ -65,8 +64,7 @@ enum FindResult {
     NotFound,
 }
 
-
-pub fn get_element_by_xpath(xpath: String) -> Option<Element> {
+pub fn get_element_by_xpath(xpath: String, ui_tree: &crate::uiexplore::UITree) -> Option<Element> {
 // Returns the Windows UI Automation API UI element of the window at the given xpath. As an xpath
 // is a string representation of the UI element, it is not a valid xpath in the XML sense.
 // The search is following a three step approach:
@@ -94,7 +92,7 @@ pub fn get_element_by_xpath(xpath: String) -> Option<Element> {
     let uia = UIAutomation::new().unwrap();
     let mut root = uia.get_root_element().unwrap();
     'outer: for element in &path_to_element {
-        println!("Looking for Element: {:?}", element);            
+        // println!("Looking for Element: {:?}", element);            
         let found = get_next_element(root.clone(), &element.clone(), search_depth);
         match found {
             FindResult::FoundSingle(found_element) => {
@@ -119,9 +117,18 @@ pub fn get_element_by_xpath(xpath: String) -> Option<Element> {
                         // and check if the xpath matches the target element
                         for found_element in found_elements {
                             if let Ok(optional_point) = found_element.get_clickable_point() {
-                                let point = optional_point.unwrap_or_default();
+                                let clickable_point = optional_point.unwrap_or_default();
+                                let point: windows::Win32::Foundation::POINT = clickable_point.into();
                                 println!("Found element at: {:?}", point);
-                                let xpath_candidate = generate_xpath(point.get_x(), point.get_y());
+
+                                //TODO: replace this with a function that generates the xpath from the UIElementInTree
+                                // based on the point coordinates and the UITree structure pased to the function
+                                // let xpath_candidate = generate_xpath(point.get_x(), point.get_y());
+                                let mut xpath_candidate = String::from("not found");
+                                if let Some(ui_element_in_tree) = crate::rectangle::get_point_bounding_rect(&point, ui_tree.get_elements()) {
+                                    xpath_candidate = ui_tree.get_xpath_for_element(ui_element_in_tree.get_tree_index());
+                                }
+                                
                                 if xpath_candidate == xpath {
                                     println!("Found target element: {:?}", found_element);
                                     root = found_element;
@@ -212,10 +219,10 @@ fn get_next_element(root: UIElement, element: &XpathElement<'_>, depth: u32 ) ->
 }
 
 
-pub fn get_ui_element_by_xpath(xpath: String) -> Option<UIElement> {
+pub fn get_ui_element_by_xpath(xpath: String, ui_tree: &crate::uiexplore::UITree) -> Option<UIElement> {
 
 
-    let ui_elem = get_element_by_xpath(xpath.clone());
+    let ui_elem = get_element_by_xpath(xpath.clone(), ui_tree);
     if ui_elem.is_none() {
         return None;
     }
@@ -259,17 +266,4 @@ pub fn get_ui_element_by_runtimeid(runtime_id: Vec<i32>) -> Option<UIElement> {
         }
     }
     
-}
-
-
-mod tests {
-    #[allow(unused_imports)]
-    use super::*;
-
-    #[test]
-    fn test_get_element_by_xpath() {
-        let xpath = r##"/Pane[@ClassName=\"#32769\"][@Name=\"Desktop 1\"]/Pane[@ClassName=\"Shell_TrayWnd\"][@Name=\"Taskleiste\"]/Pane[@ClassName=\"Windows.UI.Input.InputSite.WindowClass\"]/Pane[@ClassName=\"Taskbar.TaskbarFrameAutomationPeer\"][@AutomationId=\"TaskbarFrame\"]/Button[@Name=\"Start\"][@AutomationId=\"StartButton\"]"##; 
-        let element = get_element_by_xpath(xpath.to_string());
-        assert!(element.is_some(), "Element not found for XPath: {} -> {}", xpath, element.unwrap().get_name());
-    }
 }

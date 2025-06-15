@@ -1,4 +1,4 @@
-from time import sleep
+# from time import sleep
 from bromium import WinDriver
 
 # Create a WinDriver instance with a timeout value
@@ -14,7 +14,7 @@ print(f"Screen scale: {screen_context.get_screen_scale()}")
 x, y = driver.get_curser_pos()
 print(f"Current cursor position: ({x}, {y})")
 
-sleep(5)  # Wait for 5 seconds
+# sleep(5)  # Wait for 5 seconds
 
 # Get UI element at specific coordinates
 element = driver.get_ui_element(x, y)
