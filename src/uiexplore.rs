@@ -259,6 +259,7 @@ fn get_element(mut tree: &mut UITreeMap<UIElementProps>, mut ui_elements: &mut V
 fn match_original_format(xpath: &str) -> String {
     let lines: Vec<&str> = xpath.split('\n').filter(|line| !line.is_empty()).collect();
     let mut elements = Vec::new();
+    let mut tag: &str;
     
     for line in lines {
         if line.is_empty() {
@@ -267,8 +268,27 @@ fn match_original_format(xpath: &str) -> String {
 
         // Extract the tag name (everything before the first '[')
         let tag_end = line.find('[').unwrap_or(line.len());
-        let tag = &line[1..tag_end]; // Skip the leading '/'
+        if tag_end == 0 || !line.starts_with('/') {
+            println!("Skipping malformed line: {}", line);
+            continue; // Skip lines that don't start with '/' or are malformed
+        }
         
+        // Skip the leading '/', i.e. the 1st character - handle UTF-8 characters (i.e. char boundaries) correctly
+        // let tag = &line[1..tag_end]; // 
+        let tag_extracted = line.chars().next().map(|c| &line[c.len_utf8()..tag_end]);
+        match tag_extracted {
+            None => {
+                println!("Skipping malformed line: {}", line);
+                continue; // Skip lines that don't have a valid tag
+            },
+            Some(tag_content) => {
+                // leak the tag content outside the match scope to avoid lifetime issues
+                tag = tag_content;
+            },
+        } 
+        
+
+        // once we reached here, we have a valid tag and can start building the XPath element
         let mut element = format!("/{}", tag);
         
         // Helper function to extract attribute value and format it with escaped quotes
