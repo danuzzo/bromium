@@ -64,6 +64,37 @@ enum FindResult {
     NotFound,
 }
 
+fn get_ui_automation_instance() -> Option<UIAutomation> {
+
+    let uia: UIAutomation;
+    let uia_res = UIAutomation::new();
+    
+    match uia_res {
+        Ok(uia_ok) => {
+            uia = uia_ok;
+            println!("UIAutomation instance created successfully.");
+        },
+        Err(e) => {
+            println!("Failed to create UIAutomation instance, trying direct method: {:?}", e);
+            let uia_direct_res = UIAutomation::new_direct();
+            match uia_direct_res {
+                Ok(uia_direct_ok) => {
+                    uia = uia_direct_ok;
+                    println!("UIAutomation instance created successfully using direct method.");
+                },
+                Err(e_direct) => {
+                    println!("Failed to create UIAutomation instance using direct method: {:?}", e_direct);
+                    return None; // Return None if we cannot create a UIAutomation instance
+                }
+            }
+        }
+        
+    }
+    Some(uia)
+
+}
+
+
 pub fn get_element_by_xpath(xpath: String, ui_tree: &crate::uiexplore::UITree) -> Option<Element> {
 // Returns the Windows UI Automation API UI element of the window at the given xpath. As an xpath
 // is a string representation of the UI element, it is not a valid xpath in the XML sense.
@@ -88,8 +119,9 @@ pub fn get_element_by_xpath(xpath: String, ui_tree: &crate::uiexplore::UITree) -
         println!("Failed to get path to element.");
         return None;
     }
-    
-    let uia = UIAutomation::new().unwrap();
+
+    let uia = get_ui_automation_instance().unwrap();
+
     let mut root = uia.get_root_element().unwrap();
     'outer: for element in &path_to_element {
         // println!("Looking for Element: {:?}", element);            
@@ -181,7 +213,8 @@ pub fn get_element_by_xpath(xpath: String, ui_tree: &crate::uiexplore::UITree) -
 }
 
 fn get_next_element(root: UIElement, element: &XpathElement<'_>, depth: u32 ) -> FindResult {
-    let uia = UIAutomation::new().unwrap();
+    // let uia = UIAutomation::new().unwrap();
+    let uia = get_ui_automation_instance().unwrap();
     let matcher = uia.create_matcher().from(root).depth(depth);
 
     let control_type = ControlType::from_str(element.control_type);
@@ -251,8 +284,9 @@ impl uiautomation::filters::MatcherFilter for RuntimeIdFilter {
 
 pub fn get_ui_element_by_runtimeid(runtime_id: Vec<i32>) -> Option<UIElement> {
     println!("Searching for element with runtime id: {:?}", runtime_id);
-    let automation = UIAutomation::new().unwrap();
-    let matcher = automation.create_matcher().timeout(0).filter(Box::new(RuntimeIdFilter(runtime_id))).depth(99);
+    // let automation = UIAutomation::new().unwrap();
+    let uia = get_ui_automation_instance().unwrap();
+    let matcher = uia.create_matcher().timeout(0).filter(Box::new(RuntimeIdFilter(runtime_id))).depth(99);
     let element = matcher.find_first();
     
     match element {
