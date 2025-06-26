@@ -77,14 +77,18 @@ fn parse_attribute<'a>(input: &mut &'a str) -> Result<Attribute<'a>> {
 }
 
 fn parse_element<'a>(input: &mut &'a str) -> Result<XpathElement<'a>> {
+    printfmt!("Parsing element: {}", input);
     let control_type = parse_element_control_type(input)?;    
+    printfmt!("Control type: {}", control_type);
     let mut attribute_count = 0;
     let mut classname: Option<&str> = None;
     let mut name: Option<&str> = None;
     let mut automationid: Option<&str> = None;
     // let mut attributes = Vec::new();
     
+    printfmt!("Parsing attributes for element: {}", input);
     while let Ok(attr) = parse_attribute(input) {
+        printfmt!("Parsed attribute: {:?}", attr);
         // attributes.push(attr);
         match attr.key {
             "ClassName" => {
