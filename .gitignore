@@ -3,6 +3,7 @@
 
 # Admin files
 *.xls*
+*.txt
 
 # backup files
 /.archive
