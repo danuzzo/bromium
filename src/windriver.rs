@@ -5,6 +5,7 @@ use std::sync::mpsc::{channel, Receiver, Sender};
 use pyo3::prelude::*;
 
 use crate::context::ScreenContext;
+use crate::printfmt;
 use crate::uiauto::{get_ui_element_by_runtimeid, get_ui_element_by_xpath, get_element_by_xpath};
 use crate::uiexplore::UITree;
 use crate::app_control::launch_or_activate_application;
@@ -75,10 +76,10 @@ impl Element {
         if let Ok(e) = convert_to_ui_element(self) {
             match e.click() {
                 Ok(_) => {
-                    println!("Clicked on element: {:#?}", e);
+                    printfmt!("Clicked on element: {:#?}", e);
                 }
                 Err(e) => {
-                    println!("Error clicking on element: {:?}", e);
+                    printfmt!("Error clicking on element: {:?}", e);
                     return PyResult::Err(pyo3::exceptions::PyValueError::new_err("Click failed"));
                 }
                 
@@ -138,7 +139,8 @@ fn convert_to_ui_element(element: &Element) -> Result<UIElement, uiautomation::E
 pub struct WinDriver {
     timeout_ms: u64,
     ui_tree: UITree,
-    needs_update: bool,
+    tree_needs_update: bool,
+    // TODO: Add screen context to get scaling factor later on
 }
 
 #[pymethods]
@@ -151,10 +153,10 @@ impl WinDriver {
         thread::spawn(|| {
             crate::get_all_elements(tx, None);
         });
-        println!("Spawned separate thread to get ui tree");
+        printfmt!("Spawned separate thread to get ui tree");
         
         let ui_tree: UITree = rx.recv().unwrap();
-        let driver = WinDriver { timeout_ms, ui_tree, needs_update: false };
+        let driver = WinDriver { timeout_ms, ui_tree, tree_needs_update: false };
 
         *WINDRIVER.lock().unwrap() = Some(driver.clone());
 
@@ -162,7 +164,7 @@ impl WinDriver {
     }
 
     pub fn __repr__(&self) -> PyResult<String> {
-        PyResult::Ok(format!("<WinDriver timeout={}>, ui_tree={{object}}, needs_update={}", self.timeout_ms, self.needs_update))
+        PyResult::Ok(format!("<WinDriver timeout={}>, ui_tree={{object}}, needs_update={}", self.timeout_ms, self.tree_needs_update))
     }
 
     pub fn __str__(&self) -> PyResult<String> {
@@ -244,12 +246,12 @@ impl WinDriver {
         thread::spawn(|| {
             crate::get_all_elements(tx, None);
         });
-        println!("Spawned separate thread to refresh ui tree");
+        printfmt!("Spawned separate thread to refresh ui tree");
         
         let ui_tree: UITree = rx.recv().unwrap();
         
         self.ui_tree = ui_tree;
-        self.needs_update = false;
+        self.tree_needs_update = false;
         
         {
             *WINDRIVER.lock().unwrap() = Some(self.clone());

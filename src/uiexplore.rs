@@ -1,7 +1,7 @@
 #![allow(dead_code)]
 
 
-use crate::UITreeMap;
+use crate::{printfmt, UITreeMap};
 
 
 use std::sync::mpsc::Sender;
@@ -182,8 +182,6 @@ pub fn get_all_elements(tx: Sender<UITree>, max_depth: Option<usize>)  {
     // control view walker
     let walker = automation.get_control_view_walker().unwrap();
 
-    // raw view walker
-    // let walker = automation.get_raw_view_walker().unwrap();
         
     // get the desktop and all UI elements below the desktop
     let root = automation.get_root_element().unwrap();
@@ -194,13 +192,14 @@ pub fn get_all_elements(tx: Sender<UITree>, max_depth: Option<usize>)  {
     let ui_elem_in_tree = UIElementInTree::new(ui_elem_props, 0);
     let mut ui_elements: Vec<UIElementInTree> = vec![ui_elem_in_tree];
     
-    // printfmt!("Root element: {}", debug_clone.name);
+    printfmt!("Starting to walk the UI tree from root element: {}", root.get_name().unwrap_or("Unknown".to_string()));
     if let Ok(_first_child) = walker.get_first_child(&root) {     
         // itarate over all child ui elements
         get_element(&mut tree, &mut ui_elements,  0, &walker, &root, 0, 0, max_depth);
     }
 
     // sorting the elements by z_order and then by ascending size of the bounding rectangle
+    printfmt!("Sorting UI elements by size and z-order...");
     ui_elements.sort_by(|a, b| a.get_element_props().bounding_rect_size.cmp(&b.get_element_props().bounding_rect_size));
     ui_elements.sort_by(|a, b| a.get_element_props().z_order.cmp(&b.get_element_props().z_order));
 
@@ -208,6 +207,7 @@ pub fn get_all_elements(tx: Sender<UITree>, max_depth: Option<usize>)  {
     let ui_tree = UITree::new(tree, ui_elements);
 
     // send the tree containing all UI elements back to the main thread
+    printfmt!("Sending UI tree with {} elements to the main thread...", ui_tree.get_elements().len());
     tx.send(ui_tree).unwrap();
 
 }
@@ -239,6 +239,7 @@ fn get_element(mut tree: &mut UITreeMap<UIElementProps>, mut ui_elements: &mut V
     // walking children now
     if let Ok(child) = walker.get_first_child(&element) {
         // getting child elements
+        printfmt!("Found child element: {}", child.get_name().unwrap_or("Unknown".to_string()));
         get_element(&mut tree, &mut ui_elements, parent, walker, &child, level + 1, z_order, max_depth);
         let mut next = child;
         // walking siblings
@@ -247,6 +248,7 @@ fn get_element(mut tree: &mut UITreeMap<UIElementProps>, mut ui_elements: &mut V
             if level + 1 == 1 {
                 z_order += 1;
             }
+            printfmt!("Found sibling element: {}", sibling.get_name().unwrap_or("Unknown".to_string()));
             get_element(&mut tree, &mut ui_elements, parent, walker, &sibling,  level + 1, z_order, max_depth);
             next = sibling;
         }
@@ -269,7 +271,7 @@ fn match_original_format(xpath: &str) -> String {
         // Extract the tag name (everything before the first '[')
         let tag_end = line.find('[').unwrap_or(line.len());
         if tag_end == 0 || !line.starts_with('/') {
-            println!("Skipping malformed line: {}", line);
+            printfmt!("Skipping malformed line: {}", line);
             continue; // Skip lines that don't start with '/' or are malformed
         }
         
@@ -278,7 +280,7 @@ fn match_original_format(xpath: &str) -> String {
         let tag_extracted = line.chars().next().map(|c| &line[c.len_utf8()..tag_end]);
         match tag_extracted {
             None => {
-                println!("Skipping malformed line: {}", line);
+                printfmt!("Skipping malformed line: {}", line);
                 continue; // Skip lines that don't have a valid tag
             },
             Some(tag_content) => {

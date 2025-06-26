@@ -11,6 +11,8 @@ use winnow::{
     Result,
 };
 
+use crate::printfmt;
+
 
 
 // region: XPath parsing
@@ -115,8 +117,8 @@ pub fn get_path_to_element<'a>(input: &mut &'a str) -> Result<Vec<XpathElement<'
     // Skip the first element (the empty one) and the second element (the root element)
     let tree = input.split("/").skip(2).collect::<Vec<&str>>();
     
-    println!("Parsing XPath: {}", input);
-    println!("Tree: {:#?}", tree);
+    printfmt!("Parsing XPath: {}", input);
+    printfmt!("Tree: {:#?}", tree);
 
     for element in tree {
         // println!("\nParsing element: {}", element);       

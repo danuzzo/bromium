@@ -4,10 +4,11 @@
 //! This module provides a Python interface to the WinDriver API, allowing users to
 //! automate tasks and interact with the Windows UI using Python.
 
+mod macros;
+
 mod windriver;
 mod context;
 mod xpath;
-// mod bindings;
 mod commons;
 mod uiauto;
 use pyo3::prelude::*;
