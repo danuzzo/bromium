@@ -73,7 +73,7 @@ fn get_ui_automation_instance() -> Option<UIAutomation> {
     match uia_res {
         Ok(uia_ok) => {
             uia = uia_ok;
-            printfmt!("UIAutomation instance created successfully.");
+            // printfmt!("UIAutomation instance created successfully.");
         },
         Err(e) => {
             printfmt!("Failed to create UIAutomation instance, trying direct method: {:?}", e);
@@ -81,7 +81,7 @@ fn get_ui_automation_instance() -> Option<UIAutomation> {
             match uia_direct_res {
                 Ok(uia_direct_ok) => {
                     uia = uia_direct_ok;
-                    printfmt!("UIAutomation instance created successfully using direct method.");
+                    // printfmt!("UIAutomation instance created successfully using direct method.");
                 },
                 Err(e_direct) => {
                     printfmt!("Failed to create UIAutomation instance using direct method: {:?}", e_direct);

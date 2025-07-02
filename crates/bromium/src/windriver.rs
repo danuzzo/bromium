@@ -12,7 +12,10 @@ use crate::app_control::launch_or_activate_application;
 
 #[allow(unused_imports)]
 use crate::commons::execute_with_timeout;
+#[allow(unused_imports)]
+use screen_capture::{Window, Monitor}; 
 
+use fs_extra::dir;
 
 use windows::Win32::Foundation::{RECT, POINT}; //HWND, 
 use windows::Win32::UI::WindowsAndMessaging::{GetCursorPos}; //WindowFromPoint
@@ -72,6 +75,7 @@ impl Element {
         self.runtime_id.clone()
     }
     
+    // Region mouse methods
     pub fn send_click(&self) -> PyResult<()> {
         if let Ok(e) = convert_to_ui_element(self) {
             match e.click() {
@@ -83,6 +87,127 @@ impl Element {
                     return PyResult::Err(pyo3::exceptions::PyValueError::new_err("Click failed"));
                 }
                 
+            }
+        } else {
+            return PyResult::Err(pyo3::exceptions::PyValueError::new_err("Element not found"));
+        }
+        PyResult::Ok(())
+    }
+
+    pub fn send_double_click(&self) -> PyResult<()> {
+        if let Ok(e) = convert_to_ui_element(self) {
+            match e.double_click() {
+                Ok(_) => {
+                    printfmt!("Double clicked on element: {:#?}", e);
+                }
+                Err(e) => {
+                    printfmt!("Error double clicking on element: {:?}", e);
+                    return PyResult::Err(pyo3::exceptions::PyValueError::new_err("Double click failed"));
+                }
+            }
+        } else {
+            return PyResult::Err(pyo3::exceptions::PyValueError::new_err("Element not found"));
+        }
+        PyResult::Ok(())
+    }
+
+    pub fn send_right_click(&self) -> PyResult<()> {
+        if let Ok(e) = convert_to_ui_element(self) {
+            match e.right_click() {
+                Ok(_) => {
+                    printfmt!("Right clicked on element: {:#?}", e);
+                }
+                Err(e) => {
+                    printfmt!("Error right clicking on element: {:?}", e);
+                    return PyResult::Err(pyo3::exceptions::PyValueError::new_err("Right click failed"));
+                }
+            }
+        } else {
+            return PyResult::Err(pyo3::exceptions::PyValueError::new_err("Element not found"));
+        }
+        PyResult::Ok(())
+    }
+
+    pub fn hold_click(&self, holdkeys: String) -> PyResult<()> {
+        if let Ok(e) = convert_to_ui_element(self) {
+            match e.hold_click(&holdkeys) {
+                Ok(_) => {
+                    printfmt!("Hold clicked on element: {:#?}", e);
+                }
+                Err(e) => {
+                    printfmt!("Error hold clicking on element: {:?}", e);
+                    return PyResult::Err(pyo3::exceptions::PyValueError::new_err("Hold click failed"));
+                }
+            }
+        } else {
+            return PyResult::Err(pyo3::exceptions::PyValueError::new_err("Element not found"));
+        }
+        PyResult::Ok(())
+    }
+
+    // Region keyboard methods
+    pub fn send_keys(&self, keys: String) -> PyResult<()> {
+        if let Ok(e) = convert_to_ui_element(self) {
+            match e.send_keys(&keys, 20) { // 20 ms interval for sending keys
+                Ok(_) => {
+                    printfmt!("Sent keys '{}' to element: {:#?}", keys, e);
+                }
+                Err(e) => {
+                    printfmt!("Error sending keys to element: {:?}", e);
+                    return PyResult::Err(pyo3::exceptions::PyValueError::new_err("Send keys failed"));
+                }
+            }
+        } else {
+            return PyResult::Err(pyo3::exceptions::PyValueError::new_err("Element not found"));
+        }
+        PyResult::Ok(())
+    }    
+
+    pub fn send_text(&self, text: String) -> PyResult<()> {
+        if let Ok(e) = convert_to_ui_element(self) {
+            match e.send_text(&text, 20) { // 20 ms interval for sending text
+                Ok(_) => {
+                    printfmt!("Sent text '{}' to element: {:#?}", text, e);
+                }
+                Err(e) => {
+                    printfmt!("Error sending text to element: {:?}", e);
+                    return PyResult::Err(pyo3::exceptions::PyValueError::new_err("Send text failed"));
+                }
+            }
+        } else {
+            return PyResult::Err(pyo3::exceptions::PyValueError::new_err("Element not found"));
+        }
+        PyResult::Ok(())
+    }
+
+    pub fn hold_send_keys(&self, holdkeys: String, keys: String, interval: u64) -> PyResult<()> {
+        if let Ok(e) = convert_to_ui_element(self) {
+            match e.hold_send_keys(&holdkeys, &keys, interval) { // hold for the specified duration
+                Ok(_) => {
+                    printfmt!("Hold sent keys '{}' to element: {:#?}", keys, e);
+                }
+                Err(e) => {
+                    printfmt!("Error holding send keys to element: {:?}", e);
+                    return PyResult::Err(pyo3::exceptions::PyValueError::new_err("Hold send keys failed"));
+                }
+            }
+        } else {
+            return PyResult::Err(pyo3::exceptions::PyValueError::new_err("Element not found"));
+        }
+        PyResult::Ok(())
+    }
+
+    // Region misc methods
+    pub fn show_context_menu(&self) -> PyResult<()> {
+        if let Ok(e) = convert_to_ui_element(self) {
+            match e.show_context_menu() {
+                Ok(_) => {
+                    printfmt!("Context menu shown for element: {:#?}", e);
+                }
+                Err(e) => {
+                    printfmt!("Error showing context menu for element: {:?}", e);
+                    return PyResult::Err(pyo3::exceptions::PyValueError::new_err("Show context menu failed"));
+                }
             }
         } else {
             return PyResult::Err(pyo3::exceptions::PyValueError::new_err("Element not found"));
@@ -227,6 +352,56 @@ impl WinDriver {
         PyResult::Ok(screen_context)
     }
 
+    pub fn take_screenshot(&self) -> PyResult<String> {
+ 
+        let monitors: Vec<Monitor>;
+        if let Ok(mons) = Monitor::all() {
+            if mons.is_empty() {
+                return PyResult::Err(pyo3::exceptions::PyValueError::new_err("No monitors found"));
+            } else {
+                monitors = mons;
+            }
+        } else {
+            return PyResult::Err(pyo3::exceptions::PyValueError::new_err("Failed to get monitors"));
+        }
+
+        let mut out_dir = std::env::temp_dir();
+        out_dir = out_dir.join("bromium_screenshots");
+        match dir::create_all(out_dir.clone(), true) {
+            Ok(_) => {
+                printfmt!("Created screenshot directory at {:?}", out_dir);
+            }
+            Err(e) => {
+                printfmt!("Error creating screenshot directory: {:?}", e);
+                return PyResult::Err(pyo3::exceptions::PyValueError::new_err("Failed to create screenshot directory"));
+            }
+        }
+        
+        let primary_monitor: Option<Monitor> = monitors.into_iter().find(|m| m.is_primary().unwrap_or(false));
+        if primary_monitor.is_none() {
+            return PyResult::Err(pyo3::exceptions::PyValueError::new_err("No primary monitor found"));
+        }
+        
+        let monitor = primary_monitor.unwrap();
+        let image = monitor.capture_image().unwrap();
+        let filename = format!(
+            "monitor-{}.png",
+            normalized(monitor.name().unwrap()));
+        let filenameandpath = out_dir.join(filename);
+        match image.save(filenameandpath.clone()) {
+            Ok(_) => {
+                printfmt!("Screenshot saved successfully");
+                PyResult::Ok(filenameandpath.to_str().unwrap().to_string())
+            }
+            Err(e) => {
+                printfmt!("Error saving screenshot: {:?}", e);
+                PyResult::Err(pyo3::exceptions::PyValueError::new_err("Failed to save screenshot"))
+            }
+        }
+        
+    }
+
+
     /// Launch or activate an application using its path and an XPath
     /// 
     /// Args:
@@ -261,3 +436,6 @@ impl WinDriver {
     }
 }
 
+fn normalized(filename: String) -> String {
+    filename.replace(['|', '\\', ':', '/'], "")
+}

@@ -239,7 +239,7 @@ fn get_element(mut tree: &mut UITreeMap<UIElementProps>, mut ui_elements: &mut V
     // walking children now
     if let Ok(child) = walker.get_first_child(&element) {
         // getting child elements
-        printfmt!("Found child element: {}", child.get_name().unwrap_or("Unknown".to_string()));
+        // printfmt!("Found child element: {}", child.get_name().unwrap_or("Unknown".to_string()));
         get_element(&mut tree, &mut ui_elements, parent, walker, &child, level + 1, z_order, max_depth);
         let mut next = child;
         // walking siblings
@@ -248,7 +248,7 @@ fn get_element(mut tree: &mut UITreeMap<UIElementProps>, mut ui_elements: &mut V
             if level + 1 == 1 {
                 z_order += 1;
             }
-            printfmt!("Found sibling element: {}", sibling.get_name().unwrap_or("Unknown".to_string()));
+            // printfmt!("Found sibling element: {}", sibling.get_name().unwrap_or("Unknown".to_string()));
             get_element(&mut tree, &mut ui_elements, parent, walker, &sibling,  level + 1, z_order, max_depth);
             next = sibling;
         }

@@ -6,9 +6,12 @@ driver = WinDriver(5)
 
 # Get screen context information
 screen_context = driver.get_screen_context()
-print(f"Screen width: {screen_context.get_screen_width()}")
-print(f"Screen height: {screen_context.get_screen_height()}")
-print(f"Screen scale: {screen_context.get_screen_scale()}")
+sreens = screen_context.get_screens()
+print(f"Number of screens: {len(sreens)}")
+print(f"Primary screen information: {repr(screen_context.get_primary_screen())}")
+# print(f"Screen width: {screen_context.get_screen_width()}")
+# print(f"Screen height: {screen_context.get_screen_height()}")
+# print(f"Screen scale: {screen_context.get_screen_scale()}")
 
 # Get current cursor position
 x, y = driver.get_curser_pos()
