@@ -1,3 +1,11 @@
 [workspace]
 resolver = "3"
-members = ["crates/bromium", "crates/screen-capture"]
+members = [
+    "crates/bromium", 
+    "crates/screen-capture", 
+    "crates/uitree",
+]
+
+[workspace.dependencies]
+uiautomation = "0.18.0"
+chrono = "0.4.41"

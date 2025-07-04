@@ -7,7 +7,8 @@ use pyo3::prelude::*;
 use crate::context::ScreenContext;
 use crate::printfmt;
 use crate::uiauto::{get_ui_element_by_runtimeid, get_ui_element_by_xpath, get_element_by_xpath};
-use crate::uiexplore::UITree;
+use uitree::{UITree, get_all_elements};
+// use crate::uiexplore::UITree;
 use crate::app_control::launch_or_activate_application;
 
 #[allow(unused_imports)]
@@ -274,9 +275,9 @@ impl WinDriver {
     pub fn new(timeout_ms: u64) -> PyResult<Self> {
         
         // get the ui tree in a separate thread
-        let (tx, rx): (Sender<_>, Receiver<crate::UITree>) = channel();
+        let (tx, rx): (Sender<_>, Receiver<UITree>) = channel();
         thread::spawn(|| {
-            crate::get_all_elements(tx, None);
+            get_all_elements(tx, None);
         });
         printfmt!("Spawned separate thread to get ui tree");
         
@@ -417,9 +418,9 @@ impl WinDriver {
 
     fn refresh(&mut self) -> PyResult<()> {
         // get the ui tree in a separate thread
-        let (tx, rx): (Sender<_>, Receiver<crate::UITree>) = channel();
+        let (tx, rx): (Sender<_>, Receiver<UITree>) = channel();
         thread::spawn(|| {
-            crate::get_all_elements(tx, None);
+            get_all_elements(tx, None);
         });
         printfmt!("Spawned separate thread to refresh ui tree");
         

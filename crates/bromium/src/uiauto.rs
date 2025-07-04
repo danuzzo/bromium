@@ -2,6 +2,7 @@ use crate::printfmt;
 use crate::windriver::Element;
 use crate::xpath::get_path_to_element;
 use crate::xpath::XpathElement;
+use uitree::UITree;
 use uiautomation::{controls::ControlType, UIAutomation, UIElement};
 
 
@@ -96,7 +97,7 @@ fn get_ui_automation_instance() -> Option<UIAutomation> {
 }
 
 
-pub fn get_element_by_xpath(xpath: String, ui_tree: &crate::uiexplore::UITree) -> Option<Element> {
+pub fn get_element_by_xpath(xpath: String, ui_tree: &UITree) -> Option<Element> {
 // Returns the Windows UI Automation API UI element of the window at the given xpath. As an xpath
 // is a string representation of the UI element, it is not a valid xpath in the XML sense.
 // The search is following a three step approach:
@@ -256,7 +257,7 @@ fn get_next_element(root: UIElement, element: &XpathElement<'_>, depth: u32 ) ->
 }
 
 
-pub fn get_ui_element_by_xpath(xpath: String, ui_tree: &crate::uiexplore::UITree) -> Option<UIElement> {
+pub fn get_ui_element_by_xpath(xpath: String, ui_tree: &UITree) -> Option<UIElement> {
 
 
     let ui_elem = get_element_by_xpath(xpath.clone(), ui_tree);

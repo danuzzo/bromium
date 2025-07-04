@@ -14,14 +14,15 @@ mod uiauto;
 use pyo3::prelude::*;
 mod app_control;
 
-pub type UIHashMap<K, V, S = std::hash::RandomState> = std::collections::HashMap<K, V, S>;
-type UIHashSet<T, S = std::hash::RandomState> = std::collections::HashSet<T, S>;
 
-mod tree_map;
-use tree_map::UITreeMap;
+// pub type UIHashMap<K, V, S = std::hash::RandomState> = std::collections::HashMap<K, V, S>;
+// type UIHashSet<T, S = std::hash::RandomState> = std::collections::HashSet<T, S>;
 
-mod uiexplore;
-use uiexplore::{UITree, UIElementInTree, get_all_elements };
+// mod tree_map;
+// use tree_map::UITreeMap;
+
+// mod uiexplore;
+// use uiexplore::{UITree, UIElementInTree, get_all_elements };
 
 mod rectangle;
 

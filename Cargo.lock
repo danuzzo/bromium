@@ -159,6 +159,7 @@ dependencies = [
  "regex",
  "screen-capture",
  "uiautomation",
+ "uitree",
  "winapi",
  "windows 0.61.3",
  "winnow",
@@ -1560,6 +1561,14 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn",
+]
+
+[[package]]
+name = "uitree"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "uiautomation",
 ]
 
 [[package]]

@@ -7,7 +7,7 @@ use windows::{
     // Win32::UI::WindowsAndMessaging::*,
 };
 
-use crate::UIElementInTree;
+use uitree::UIElementInTree;
 
 pub fn get_point_bounding_rect<'a>(point: &'a POINT, ui_elements: &'a Vec<UIElementInTree>) -> Option<&'a UIElementInTree> {
     
