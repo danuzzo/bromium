@@ -55,7 +55,7 @@ impl<T> UITreeMap<T> {
             name: name.to_string(),
             index,
             parent,
-            children: Vec::new(),
+            children: Vec::with_capacity(15),
             data,
         };
 

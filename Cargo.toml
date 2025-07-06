@@ -9,3 +9,7 @@ members = [
 [workspace.dependencies]
 uiautomation = "0.18.0"
 chrono = "0.4.41"
+
+[profile.release-with-debug]
+inherits = "release"
+debug = true

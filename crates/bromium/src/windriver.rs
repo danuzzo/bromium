@@ -320,12 +320,14 @@ impl WinDriver {
         if let Some(ui_element_in_tree) = crate::rectangle::get_point_bounding_rect(&cursor_position, self.ui_tree.get_elements()) {
             let xpath = self.ui_tree.get_xpath_for_element(ui_element_in_tree.get_tree_index());
             let ui_element_props = ui_element_in_tree.get_element_props();
+            let ui_element_props = ui_element_props.get_element();
+            let bounding_rect = ui_element_props.get_bounding_rectangle().unwrap_or(uiautomation::types::Rect::new(0, 0, 0, 0));
             let element = Element::new(
-                ui_element_props.name.clone(),
+                ui_element_props.get_name().unwrap_or("".to_string()),
                 xpath,
-                ui_element_props.handle,
-                ui_element_props.runtime_id.clone(),
-                (ui_element_props.bounding_rect.get_left(), ui_element_props.bounding_rect.get_top(), ui_element_props.bounding_rect.get_right(), ui_element_props.bounding_rect.get_bottom())
+                ui_element_props.get_native_window_handle().unwrap_or_default().into(),
+                ui_element_props.get_runtime_id().unwrap_or_default(),
+                (bounding_rect.get_left(), bounding_rect.get_top(), bounding_rect.get_right(), bounding_rect.get_bottom())
             );
             return PyResult::Ok(element)
         } else {

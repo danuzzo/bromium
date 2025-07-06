@@ -12,16 +12,16 @@ use uiautomation::types::Handle;
 
 #[derive(Debug, Clone)]
 pub struct UIElementInTree {
-    element_props: UIElementProps,
+    element_props: SaveUIElement,
     tree_index: usize,
 }
 
 impl UIElementInTree {
-    pub fn new(element_props: UIElementProps, tree_index: usize) -> Self {
+    pub fn new(element_props: SaveUIElement, tree_index: usize) -> Self {
         UIElementInTree {element_props, tree_index}
     }
 
-    pub fn get_element_props(&self) -> &UIElementProps {
+    pub fn get_element_props(&self) -> &SaveUIElement {
         &self.element_props
     }
 
@@ -32,16 +32,16 @@ impl UIElementInTree {
 
 #[derive(Debug, Clone)]
 pub struct UITree {
-    tree: UITreeMap<UIElementProps>,
+    tree: UITreeMap<SaveUIElement>,
     ui_elements: Vec<UIElementInTree>,
 }
 
 impl UITree {
-    pub fn new(tree: UITreeMap<UIElementProps>, ui_elements: Vec<UIElementInTree>) -> Self {
+    pub fn new(tree: UITreeMap<SaveUIElement>, ui_elements: Vec<UIElementInTree>) -> Self {
         UITree {tree, ui_elements} 
     }
 
-    pub fn get_tree(&self) -> &UITreeMap<UIElementProps> {
+    pub fn get_tree(&self) -> &UITreeMap<SaveUIElement> {
         &self.tree
     }
 
@@ -51,7 +51,7 @@ impl UITree {
 
     pub fn for_each<F>(&self, f: F)
     where
-        F: FnMut(usize, &UIElementProps),
+        F: FnMut(usize, &SaveUIElement),
     {
         self.tree.for_each(f);
     }
@@ -64,7 +64,7 @@ impl UITree {
         self.tree.children(index)
     }
 
-    pub fn node(&self, index: usize) -> (&str, &UIElementProps) {
+    pub fn node(&self, index: usize) -> (&str, &SaveUIElement) {
         let node = &self.tree.node(index);
         (&node.name, &node.data)
 
@@ -92,19 +92,29 @@ impl UITree {
         for &node_index in path_to_element.iter() {
             let node = &self.tree.node(node_index);
             let ui_elem_props = &node.data;
-            let ctrl_type = ui_elem_props.control_type.clone();
-            let ctrl_type_localized = ui_elem_props.localized_control_type.clone();
-            let name = ui_elem_props.name.clone();
-            let class_name = ui_elem_props.classname.clone();
-            let automation_id = ui_elem_props.automation_id.clone();
-            let left = ui_elem_props.bounding_rect.get_left();
-            let top = ui_elem_props.bounding_rect.get_top();
-            let right = ui_elem_props.bounding_rect.get_right();
-            let bottom = ui_elem_props.bounding_rect.get_bottom();
+            
+            let mut control_type: String = "".to_string();
+            if let Ok(ctrl_type) =  ui_elem_props.element.get_control_type() {
+                control_type = ctrl_type.to_string();    
+            }
+            // let ctrl_type = ui_elem_props.element.get_control_type().unwrap();
+            let control_type_localized = ui_elem_props.element.get_localized_control_type().unwrap_or("".to_string());
+            
+            let name = ui_elem_props.element.get_name().unwrap_or("".to_string());
+            let class_name = ui_elem_props.element.get_classname().unwrap_or("".to_string());
+            let automation_id = ui_elem_props.element.get_automation_id().unwrap_or("".to_string());
+
+            let bounding_rect: uiautomation::types::Rect = ui_elem_props.element.get_bounding_rectangle().unwrap_or(uiautomation::types::Rect::new(0, 0, 0, 0));
+            let left = bounding_rect.get_left();
+            let top = bounding_rect.get_top();
+            let right = bounding_rect.get_right();
+            let bottom = bounding_rect.get_bottom();
             let width = right - left;
             let height = bottom - top;
-            let runtime_id = ui_elem_props.runtime_id.iter().map(|x| x.to_string()).collect::<Vec<String>>().join(".");
-            path.push(format!("/{}[LocalizedControlType=\"{}\"][ClassName=\"{}\"][Name=\"{}\"][AutomationId=\"{}\"][x={}][y={}][width={}][height={}][lx={}][ly={}][position()={}][RuntimeId=\"{}\"]\n", ctrl_type, ctrl_type_localized, class_name, name, automation_id, left, top, width, height, left, top, "", runtime_id));
+            
+            let runtime_id = ui_elem_props.element.get_runtime_id().unwrap().iter().map(|x| x.to_string()).collect::<Vec<String>>().join(".");
+            path.push(format!("/{}[LocalizedControlType=\"{}\"][ClassName=\"{}\"][Name=\"{}\"][AutomationId=\"{}\"][x={}][y={}][width={}][height={}][lx={}][ly={}][position()={}][RuntimeId=\"{}\"]\n", control_type, control_type_localized, class_name, name, automation_id, left, top, width, height, left, top, "", runtime_id));
+            // path.push(format!("/{}[LocalizedControlType=\"{}\"][ClassName=\"{}\"][Name=\"{}\"][AutomationId=\"{}\"][x={}][y={}][width={}][height={}][lx={}][ly={}][position()={}]\n", ctrl_type, ctrl_type_localized, class_name, name, automation_id, left, top, width, height, left, top, ""));
         }
 
         // path.reverse();
@@ -176,23 +186,52 @@ impl From<UIElement> for UIElementProps {
     }
 }
 
+#[derive(Debug, Clone)]
+pub struct SaveUIElement {
+    pub element: UIElement,
+    pub bounding_rect_size: i32,
+    pub level: usize,
+    pub z_order: usize,
+
+}
+
+unsafe impl Send for SaveUIElement {}
+unsafe impl Sync for SaveUIElement {}
+
+impl SaveUIElement {
+    pub fn new(element: UIElement, level: usize, z_order: usize) -> Self {
+        let bounding_rect: uiautomation::types::Rect = element.get_bounding_rectangle().unwrap_or(uiautomation::types::Rect::new(0, 0, 0, 0));
+        let bounding_rect_size: i32 = (bounding_rect.get_right() - bounding_rect.get_left()) * (bounding_rect.get_bottom() - bounding_rect.get_top());            
+        SaveUIElement { element, bounding_rect_size, level, z_order }
+    }
+
+    pub fn get_element(&self) -> &UIElement {
+        &self.element
+    }
+}
+
+
 pub fn get_all_elements(tx: Sender<UITree>, max_depth: Option<usize>)  {   
     
     let automation = UIAutomation::new().unwrap();
     // control view walker
     let walker = automation.get_control_view_walker().unwrap();
 
-        
+    // allocate a new ui elements vector with a capacity of 10000 elements
+    let mut ui_elements: Vec<UIElementInTree> = Vec::with_capacity(10000);
+
     // get the desktop and all UI elements below the desktop
     let root = automation.get_root_element().unwrap();
     let runtime_id = root.get_runtime_id().unwrap_or(vec![0, 0, 0, 0]).iter().map(|x| x.to_string()).collect::<Vec<String>>().join("-");
     let item = format!("'{}' {} ({} | {} | {})", root.get_name().unwrap(), root.get_localized_control_type().unwrap(), root.get_classname().unwrap(), root.get_framework_id().unwrap(), runtime_id);
-    let ui_elem_props = UIElementProps::new(root.clone(), 0, 999);
+    let ui_elem_props = SaveUIElement::new(root.clone(), 0, 999);
     let mut tree = UITreeMap::new(item, ui_elem_props.clone());
-    let ui_elem_in_tree = UIElementInTree::new(ui_elem_props, 0);
-    let mut ui_elements: Vec<UIElementInTree> = vec![ui_elem_in_tree];
+    let ui_elem_in_tree = UIElementInTree::new(ui_elem_props, 0);    
+    // let mut ui_elements: Vec<UIElementInTree> = vec![ui_elem_in_tree];
+    ui_elements.push(ui_elem_in_tree);
     
-    printfmt!("Starting to walk the UI tree from root element: {}", root.get_name().unwrap_or("Unknown".to_string()));
+    // printfmt!("Starting to walk the UI tree from root element: {}", root.get_name().unwrap_or("Unknown".to_string()));
+    // printfmt!("Starting to walk the UI tree from root element");
     if let Ok(_first_child) = walker.get_first_child(&root) {     
         // itarate over all child ui elements
         get_element(&mut tree, &mut ui_elements,  0, &walker, &root, 0, 0, max_depth);
@@ -213,8 +252,7 @@ pub fn get_all_elements(tx: Sender<UITree>, max_depth: Option<usize>)  {
 }
 
 
-fn get_element(mut tree: &mut UITreeMap<UIElementProps>, mut ui_elements: &mut Vec<UIElementInTree>, parent: usize, walker: &UITreeWalker, element: &UIElement, level: usize, mut z_order: usize, max_depth: Option<usize>)  {
-
+fn get_element(mut tree: &mut UITreeMap<SaveUIElement>, mut ui_elements: &mut Vec<UIElementInTree>, parent: usize, walker: &UITreeWalker, element: &UIElement, level: usize, mut z_order: usize, max_depth: Option<usize>)  {
     if let Some(limit) = max_depth {
         if level > limit {
             return;
@@ -222,21 +260,22 @@ fn get_element(mut tree: &mut UITreeMap<UIElementProps>, mut ui_elements: &mut V
     }
 
     let runtime_id = element.get_runtime_id().unwrap_or(vec![0, 0, 0, 0]).iter().map(|x| x.to_string()).collect::<Vec<String>>().join("-");
+    // let runtime_id = "runtime_id".to_string(); // placeholder for runtime_id, as it is not used in the current implementation
     let item = format!("'{}' {} ({} | {} | {})", element.get_name().unwrap(), element.get_localized_control_type().unwrap(), element.get_classname().unwrap(), element.get_framework_id().unwrap(), runtime_id);
-    let ui_elem_props: UIElementProps;
+    let ui_elem_props: SaveUIElement;
 
     if level == 0 {
         // manually setting the z_order for the root element
-        ui_elem_props = UIElementProps::new(element.clone(), level, 999);
+        ui_elem_props = SaveUIElement::new(element.clone(), level, 999);
     } else {
-        ui_elem_props = UIElementProps::new(element.clone(), level, z_order);
+        ui_elem_props = SaveUIElement::new(element.clone(), level, z_order);
     }
     
     let parent = tree.add_child(parent, item.as_str(), ui_elem_props.clone());
     let ui_elem_in_tree = UIElementInTree::new(ui_elem_props, parent);
     ui_elements.push(ui_elem_in_tree);
 
-    // walking children now
+    // Walking the children of the current element
     if let Ok(child) = walker.get_first_child(&element) {
         // getting child elements
         // printfmt!("Found child element: {}", child.get_name().unwrap_or("Unknown".to_string()));
