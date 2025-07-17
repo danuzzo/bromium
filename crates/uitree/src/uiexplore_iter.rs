@@ -211,7 +211,7 @@ impl SaveUIElement {
 }
 
 
-pub fn get_all_elements(tx: Sender<UITree>, max_depth: Option<usize>)  {   
+pub fn get_all_elements_iterative(tx: Sender<UITree>, max_depth: Option<usize>)  {   
     
     let automation = UIAutomation::new().unwrap();
     // control view walker
@@ -234,7 +234,7 @@ pub fn get_all_elements(tx: Sender<UITree>, max_depth: Option<usize>)  {
     // printfmt!("Starting to walk the UI tree from root element");
     if let Ok(_first_child) = walker.get_first_child(&root) {     
         // itarate over all child ui elements
-        get_element(&mut tree, &mut ui_elements,  0, &walker, &root, 0, 0, max_depth);
+        get_element_iterative(&mut tree, &mut ui_elements,  0, &walker, &root, 0, 0, max_depth);
     }
 
     // sorting the elements by z_order and then by ascending size of the bounding rectangle
@@ -251,7 +251,7 @@ pub fn get_all_elements(tx: Sender<UITree>, max_depth: Option<usize>)  {
 
 }
 
-
+/*
 fn get_element(mut tree: &mut UITreeMap<SaveUIElement>, mut ui_elements: &mut Vec<UIElementInTree>, parent: usize, walker: &UITreeWalker, element: &UIElement, level: usize, mut z_order: usize, max_depth: Option<usize>)  {
     if let Some(limit) = max_depth {
         if level > limit {
@@ -294,6 +294,7 @@ fn get_element(mut tree: &mut UITreeMap<SaveUIElement>, mut ui_elements: &mut Ve
     }    
     
 }
+*/
 
 fn get_element_iterative(
     tree: &mut UITreeMap<SaveUIElement>,

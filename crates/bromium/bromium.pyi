@@ -205,6 +205,7 @@ class WinDriver:
     - get_curser_pos(self) -> tuple[int, int]: Returns the current cursor position.
     - get_ui_element(self, x: int, y: int) -> Element: Returns the UI Element at the given coordinates.
     - get_screen_context(self) -> ScreenContext: Returns the screen context information.
+    - take_screenshot(self) -> str: Takes a screenshot of the current screen, saves it and returns the path to the file created.
     - launch_or_activate_app(self, app_path: str, xpath: str) -> bool: Launches or activates an application.
     - refresh(self) -> None: Refreshes the internal UI tree representation.
     """
@@ -303,6 +304,20 @@ class WinDriver:
         
         Returns:
         - ScreenContext: The screen size and scale as a ScreenContext object.
+        """
+        pass
+
+    def take_screenshot(self) -> str:
+        """
+        Takes a screenshot of the current screen, saves it and returns the path to the file created.
+        
+        The screenshot is saved in a temporary directory and the path to the file is returned.
+        
+        Returns:
+        - str: The path to the screenshot file.
+        
+        Raises:
+        - RuntimeError: If taking the screenshot fails.
         """
         pass
 

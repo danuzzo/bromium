@@ -1,0 +1,147 @@
+#![allow(dead_code)]
+
+use quick_xml::events::{BytesCData, BytesEnd, BytesStart, BytesText, Event};
+use quick_xml::writer::Writer;
+use quick_xml::Error;
+use std::io::Cursor;
+
+#[derive(Debug, Clone)]
+struct XMLAttribute {
+    name: String,
+    value: String,
+}
+
+impl XMLAttribute {
+    fn new(name: &str, value: &str) -> Self {
+        XMLAttribute {
+            name: name.to_string(),
+            value: value.to_string(),
+        }
+    }
+    
+}
+
+#[derive(Debug, Clone)]
+pub struct XMLAttributes {
+    attributes: Vec<XMLAttribute>,
+}
+
+impl XMLAttributes {
+    pub fn new() -> Self {
+        XMLAttributes {
+            attributes: Vec::new(),
+        }
+    }
+
+    pub fn add(&mut self, name: &str, value: &str) {
+        self.attributes.push(XMLAttribute::new(name, value));
+    }
+
+    pub fn into_iter(self) -> impl Iterator<Item = Result<(String, String), Error>> {
+        self.attributes.into_iter().map(|attr| Ok((attr.name, attr.value)))
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.attributes.is_empty()
+    }
+    
+    pub fn len(&self) -> usize {
+        self.attributes.len()
+    }
+
+    pub fn clear(&mut self) {
+        self.attributes.clear();
+    }
+
+    pub fn get(&self, name: &str) -> Option<&String> {
+        self.attributes.iter().find(|attr| attr.name == name).map(|attr| &attr.value)
+    }
+
+    pub fn remove(&mut self, name: &str) -> Option<(String, String)>  {
+        if let Some(pos) = self.attributes.iter().position(|attr| attr.name == name) {
+            let removed = self.attributes.remove(pos);
+            Some((removed.name, removed.value))
+        } else {
+            None
+        }
+    }
+
+    pub fn set(&mut self, name: &str, value: &str) {
+        if let Some(attr) = self.attributes.iter_mut().find(|attr| attr.name == name) {
+            attr.value = value.to_string();
+        } else {
+            self.add(name, value);
+        }
+    }
+
+    pub fn get_all(&self) -> Vec<(String, String)> {
+        self.attributes.iter().map(|attr| (attr.name.clone(), attr.value.clone())).collect()
+    }
+
+}
+
+#[derive(Clone)]
+pub struct XMLWriter {
+   writer: Writer<Cursor<Vec<u8>>>,
+   stack: Vec<String>,
+}
+
+impl XMLWriter {
+    pub fn new() -> Self {
+        let writer = Writer::new(Cursor::new(Vec::new()));
+        let stack: Vec<String> = Vec::new();
+        XMLWriter { writer, stack }
+    }
+
+    pub fn write_start_element(&mut self, name: &str) -> Result<(), Error> {
+        let start = BytesStart::new(name);
+        self.writer.write_event(Event::Start(start))?;
+        Ok(())
+    }
+
+    pub fn write_end_element(&mut self, name: &str) -> Result<(), Error> {
+        let end = BytesEnd::new(name);
+        self.writer.write_event(Event::End(end))?;
+        Ok(())
+    }
+
+    pub fn write_text(&mut self, content: &str) -> Result<(), Error> {
+        self.writer.write_event(Event::Text(BytesText::new(content)))?;
+        Ok(())
+    }
+
+    pub fn write_cdata(&mut self, content: &str) -> Result<(), Error> {
+        self.writer.write_event(Event::CData(BytesCData::new(content)))?;
+        Ok(())
+    }
+
+    pub fn write_element(&mut self, name: &str, content: &str, attrs: Option<XMLAttributes>) -> Result<(), Error> {
+        let mut start = BytesStart::new(name);
+        if let Some(attributes) = attrs {
+            let mut key: &str;
+            let mut value: &str;
+            for attr in attributes.into_iter() {
+                let attrs = attr?;
+                key = attrs.0.as_str();
+                value = attrs.1.as_str();
+                start.push_attribute((key, value));
+            }
+
+        }
+
+        self.writer.write_event(Event::Start(start))?;
+        self.writer.write_event(Event::Text(BytesText::new(content)))?;
+        self.writer.write_event(Event::End(BytesEnd::new(name)))?;
+        Ok(())
+    }
+
+    pub fn get_xml_raw(self) -> Vec<u8> {
+        self.writer.into_inner().into_inner()
+    }
+    
+    pub fn get_xml_string(self) -> String {
+        String::from_utf8(self.get_xml_raw()).unwrap()
+    }
+
+}
+

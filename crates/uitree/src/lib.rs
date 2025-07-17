@@ -8,4 +8,9 @@ mod tree_map;
 use tree_map::UITreeMap;
 
 mod uiexplore;
-pub use uiexplore::{UITree, UIElementInTree, get_all_elements };
+pub use uiexplore::{UITree, UIElementInTree, get_all_elements};
+
+mod uiexplore_iter;
+pub use uiexplore_iter::{UITree as UITreeIter, UIElementInTree as UIElementInTreeIter, get_all_elements_iterative};
+
+mod xml;
