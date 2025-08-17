@@ -497,3 +497,32 @@ class ScreenContext:
         """
         pass
     
+class LogLevel:
+    """Log level enumeration for controlling logging verbosity."""
+    Error: 'LogLevel'
+    Warn: 'LogLevel'
+    Info: 'LogLevel'
+    Debug: 'LogLevel'
+    Trace: 'LogLevel'
+
+def set_log_level(level: LogLevel) -> None:
+    """
+    Set the logging level for the bromium module.
+    
+    Parameters:
+    - level (LogLevel): The desired log level (Error, Warn, Info, Debug, or Trace)
+    
+    Example:
+        import bromium
+        bromium.set_log_level(bromium.LogLevel.Info)
+    """
+    pass
+
+def get_log_level() -> str:
+    """
+    Get the current logging level.
+    
+    Returns:
+    - str: The current log level as a string
+    """
+    pass

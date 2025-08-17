@@ -5,7 +5,6 @@ use std::sync::mpsc::{channel, Receiver, Sender};
 use pyo3::prelude::*;
 
 use crate::context::ScreenContext;
-use crate::printfmt;
 use crate::uiauto::{get_ui_element_by_runtimeid, get_ui_element_by_xpath, get_element_by_xpath};
 use uitree::{UITree, get_all_elements};
 // use crate::uiexplore::UITree;
@@ -22,6 +21,8 @@ use windows::Win32::Foundation::{RECT, POINT}; //HWND,
 use windows::Win32::UI::WindowsAndMessaging::{GetCursorPos}; //WindowFromPoint
 
 use uiautomation::{UIElement}; //UIAutomation, 
+
+use log::{debug, error, info, trace, warn};
 
 static WINDRIVER: Mutex<Option<WinDriver>> = Mutex::new(None);
 
@@ -43,6 +44,7 @@ impl Element {
 
     #[new]
     pub fn new(name: String, xpath: String, handle: isize, runtime_id: Vec<i32>, bounding_rectangle: (i32, i32, i32, i32)) -> Self {
+        debug!("Creating new Element: name='{}', xpath='{}', handle={}", name, xpath, handle);
         let bounding_rectangle  = RECT {
             left: bounding_rectangle.0,
             top: bounding_rectangle.1,
@@ -78,13 +80,14 @@ impl Element {
     
     // Region mouse methods
     pub fn send_click(&self) -> PyResult<()> {
+        debug!("Element::send_click called for element: {}", self.name);
         if let Ok(e) = convert_to_ui_element(self) {
             match e.click() {
                 Ok(_) => {
-                    printfmt!("Clicked on element: {:#?}", e);
+                    info!("Successfully clicked on element: {:#?}", e);
                 }
                 Err(e) => {
-                    printfmt!("Error clicking on element: {:?}", e);
+                    error!("Error clicking on element: {:?}", e);
                     return PyResult::Err(pyo3::exceptions::PyValueError::new_err("Click failed"));
                 }
                 
@@ -96,13 +99,14 @@ impl Element {
     }
 
     pub fn send_double_click(&self) -> PyResult<()> {
+        debug!("Element::send_double_click called for element: {}", self.name);
         if let Ok(e) = convert_to_ui_element(self) {
             match e.double_click() {
                 Ok(_) => {
-                    printfmt!("Double clicked on element: {:#?}", e);
+                    info!("Double clicked on element: {:#?}", e);
                 }
                 Err(e) => {
-                    printfmt!("Error double clicking on element: {:?}", e);
+                    error!("Error double clicking on element: {:?}", e);
                     return PyResult::Err(pyo3::exceptions::PyValueError::new_err("Double click failed"));
                 }
             }
@@ -113,13 +117,14 @@ impl Element {
     }
 
     pub fn send_right_click(&self) -> PyResult<()> {
+        debug!("Element::send_right_click called for element: {}", self.name);
         if let Ok(e) = convert_to_ui_element(self) {
             match e.right_click() {
                 Ok(_) => {
-                    printfmt!("Right clicked on element: {:#?}", e);
+                    info!("Right clicked on element: {:#?}", e);
                 }
                 Err(e) => {
-                    printfmt!("Error right clicking on element: {:?}", e);
+                    error!("Error right clicking on element: {:?}", e);
                     return PyResult::Err(pyo3::exceptions::PyValueError::new_err("Right click failed"));
                 }
             }
@@ -130,13 +135,14 @@ impl Element {
     }
 
     pub fn hold_click(&self, holdkeys: String) -> PyResult<()> {
+        debug!("Element::hold_click called for element: {}", self.name);
         if let Ok(e) = convert_to_ui_element(self) {
             match e.hold_click(&holdkeys) {
                 Ok(_) => {
-                    printfmt!("Hold clicked on element: {:#?}", e);
+                    info!("Hold clicked on element: {:#?}", e);
                 }
                 Err(e) => {
-                    printfmt!("Error hold clicking on element: {:?}", e);
+                    error!("Error hold clicking on element: {:?}", e);
                     return PyResult::Err(pyo3::exceptions::PyValueError::new_err("Hold click failed"));
                 }
             }
@@ -148,13 +154,14 @@ impl Element {
 
     // Region keyboard methods
     pub fn send_keys(&self, keys: String) -> PyResult<()> {
+        debug!("Element::send_keys called with keys: '{}' for element: {}", keys, self.name);
         if let Ok(e) = convert_to_ui_element(self) {
             match e.send_keys(&keys, 20) { // 20 ms interval for sending keys
                 Ok(_) => {
-                    printfmt!("Sent keys '{}' to element: {:#?}", keys, e);
+                    info!("Sent keys '{}' to element: {:#?}", keys, e);
                 }
                 Err(e) => {
-                    printfmt!("Error sending keys to element: {:?}", e);
+                    error!("Error sending keys to element: {:?}", e);
                     return PyResult::Err(pyo3::exceptions::PyValueError::new_err("Send keys failed"));
                 }
             }
@@ -165,13 +172,14 @@ impl Element {
     }    
 
     pub fn send_text(&self, text: String) -> PyResult<()> {
+        debug!("Element::send_text called with text: '{}' for element: {}", text, self.name);
         if let Ok(e) = convert_to_ui_element(self) {
             match e.send_text(&text, 20) { // 20 ms interval for sending text
                 Ok(_) => {
-                    printfmt!("Sent text '{}' to element: {:#?}", text, e);
+                    info!("Sent text '{}' to element: {:#?}", text, e);
                 }
                 Err(e) => {
-                    printfmt!("Error sending text to element: {:?}", e);
+                    error!("Error sending text to element: {:?}", e);
                     return PyResult::Err(pyo3::exceptions::PyValueError::new_err("Send text failed"));
                 }
             }
@@ -182,13 +190,14 @@ impl Element {
     }
 
     pub fn hold_send_keys(&self, holdkeys: String, keys: String, interval: u64) -> PyResult<()> {
+        debug!("Element::hold_send_keys called with keys: '{}' for element: {}", keys, self.name);
         if let Ok(e) = convert_to_ui_element(self) {
             match e.hold_send_keys(&holdkeys, &keys, interval) { // hold for the specified duration
                 Ok(_) => {
-                    printfmt!("Hold sent keys '{}' to element: {:#?}", keys, e);
+                    info!("Hold sent keys '{}' to element: {:#?}", keys, e);
                 }
                 Err(e) => {
-                    printfmt!("Error holding send keys to element: {:?}", e);
+                    error!("Error holding send keys to element: {:?}", e);
                     return PyResult::Err(pyo3::exceptions::PyValueError::new_err("Hold send keys failed"));
                 }
             }
@@ -200,13 +209,14 @@ impl Element {
 
     // Region misc methods
     pub fn show_context_menu(&self) -> PyResult<()> {
+        debug!("Element::show_context_menu called for element: {}", self.name);
         if let Ok(e) = convert_to_ui_element(self) {
             match e.show_context_menu() {
                 Ok(_) => {
-                    printfmt!("Context menu shown for element: {:#?}", e);
+                    info!("Context menu shown for element: {:#?}", e);
                 }
                 Err(e) => {
-                    printfmt!("Error showing context menu for element: {:?}", e);
+                    error!("Error showing context menu for element: {:?}", e);
                     return PyResult::Err(pyo3::exceptions::PyValueError::new_err("Show context menu failed"));
                 }
             }
@@ -236,9 +246,10 @@ impl Default for Element {
 }
 
 fn convert_to_ui_element(element: &Element) -> Result<UIElement, uiautomation::Error> {
-
+    debug!("Element::convert_to_ui_element called.");
     // first try to get the element by runtime id
     if let Some(ui_element) = get_ui_element_by_runtimeid(element.get_runtime_id()) {
+        debug!("Element found by runtime id.");
         return Ok(ui_element);
     } else {
         // if that fails, try to get the element by xpath
@@ -249,8 +260,10 @@ fn convert_to_ui_element(element: &Element) -> Result<UIElement, uiautomation::E
             let windriver = guard.as_ref().ok_or_else(|| uiautomation::Error::new(uiautomation::errors::ERR_NOTFOUND, "WinDriver not initialized"))?;
             let ui_tree = &windriver.ui_tree;
             if let Some(ui_element) = get_ui_element_by_xpath(element.get_xpath(), ui_tree) {
+                debug!("Element found by xpath.");
                 return Ok(ui_element);
             } else {
+                error!("Element not found.");
                 return Err(uiautomation::Error::new(uiautomation::errors::ERR_NOTFOUND, "could not find element"));
             }
         }
@@ -273,19 +286,24 @@ pub struct WinDriver {
 impl WinDriver {
     #[new]
     pub fn new(timeout_ms: u64) -> PyResult<Self> {
-        
+        debug!("Creating new WinDriver with timeout: {}ms", timeout_ms);
+
         // get the ui tree in a separate thread
         let (tx, rx): (Sender<_>, Receiver<UITree>) = channel();
         thread::spawn(|| {
+            debug!("Spawning thread to get UI tree");
             get_all_elements(tx, None);
         });
-        printfmt!("Spawned separate thread to get ui tree");
+        info!("Spawned separate thread to get ui tree");
         
         let ui_tree: UITree = rx.recv().unwrap();
+        debug!("UI tree received with {} elements", ui_tree.get_elements().len());
+        
         let driver = WinDriver { timeout_ms, ui_tree, tree_needs_update: false };
 
         *WINDRIVER.lock().unwrap() = Some(driver.clone());
 
+        info!("WinDriver successfully created");
         Ok(driver)
     }
 
@@ -306,6 +324,7 @@ impl WinDriver {
     }
 
     pub fn get_curser_pos(&self) -> PyResult<(i32, i32)> {
+        debug!("WinDriver::get_curser_pos called.");
         let mut point = windows::Win32::Foundation::POINT { x: 0, y: 0 };
         unsafe {
             let _res= GetCursorPos(&mut point);
@@ -314,11 +333,14 @@ impl WinDriver {
     }
 
     pub fn get_ui_element(&self, x: i32, y: i32) -> PyResult<Element> {
+        debug!("WinDriver::get_ui_element called for coordinates: ({}, {})", x, y);
     
         let cursor_position = POINT { x, y };
 
         if let Some(ui_element_in_tree) = crate::rectangle::get_point_bounding_rect(&cursor_position, self.ui_tree.get_elements()) {
             let xpath = self.ui_tree.get_xpath_for_element(ui_element_in_tree.get_tree_index());
+            trace!("Found element with xpath: {}", xpath);
+
             let ui_element_props = ui_element_in_tree.get_element_props();
             let ui_element_props = ui_element_props.get_element();
             let bounding_rect = ui_element_props.get_bounding_rectangle().unwrap_or(uiautomation::types::Rect::new(0, 0, 0, 0));
@@ -329,15 +351,18 @@ impl WinDriver {
                 ui_element_props.get_runtime_id().unwrap_or_default(),
                 (bounding_rect.get_left(), bounding_rect.get_top(), bounding_rect.get_right(), bounding_rect.get_bottom())
             );
+            info!("Successfully found element at ({}, {}): {}", x, y, element.name);
             return PyResult::Ok(element)
         } else {
+            warn!("No element found at coordinates ({}, {})", x, y);
             return PyResult::Err(pyo3::exceptions::PyValueError::new_err("Element not found at the given coordinates"))
         }
 
     }
 
     fn get_ui_element_by_xpath(&self, xpath: String) -> PyResult<Element> {
-        
+        debug!("WinDriver::get_ui_element_by_xpath called.");
+
         let ui_elem = get_element_by_xpath(xpath.clone(), &self.ui_tree);
         if ui_elem.is_none() {
             return PyResult::Err(pyo3::exceptions::PyValueError::new_err("Element not found"));
@@ -351,20 +376,26 @@ impl WinDriver {
     }
 
     pub fn get_screen_context(&self) -> PyResult<ScreenContext> {
+        debug!("WinDriver::get_screen_context called.");
+
         let screen_context = ScreenContext::new();
         PyResult::Ok(screen_context)
     }
 
     pub fn take_screenshot(&self) -> PyResult<String> {
- 
+         debug!("WinDriver::take_screenshot called.");
+
         let monitors: Vec<Monitor>;
         if let Ok(mons) = Monitor::all() {
             if mons.is_empty() {
+                error!("No monitors found for screenshot");
                 return PyResult::Err(pyo3::exceptions::PyValueError::new_err("No monitors found"));
             } else {
+                debug!("Found {} monitors", mons.len());
                 monitors = mons;
             }
         } else {
+            error!("Failed to get monitors for screenshot");
             return PyResult::Err(pyo3::exceptions::PyValueError::new_err("Failed to get monitors"));
         }
 
@@ -372,10 +403,10 @@ impl WinDriver {
         out_dir = out_dir.join("bromium_screenshots");
         match dir::create_all(out_dir.clone(), true) {
             Ok(_) => {
-                printfmt!("Created screenshot directory at {:?}", out_dir);
+                info!("Created screenshot directory at {:?}", out_dir);
             }
             Err(e) => {
-                printfmt!("Error creating screenshot directory: {:?}", e);
+                error!("Error creating screenshot directory: {:?}", e);
                 return PyResult::Err(pyo3::exceptions::PyValueError::new_err("Failed to create screenshot directory"));
             }
         }
@@ -393,11 +424,11 @@ impl WinDriver {
         let filenameandpath = out_dir.join(filename);
         match image.save(filenameandpath.clone()) {
             Ok(_) => {
-                printfmt!("Screenshot saved successfully");
+                info!("Screenshot saved successfully to: {}", filenameandpath.to_str().unwrap());
                 PyResult::Ok(filenameandpath.to_str().unwrap().to_string())
             }
             Err(e) => {
-                printfmt!("Error saving screenshot: {:?}", e);
+                error!("Error saving screenshot: {:?}", e);
                 PyResult::Err(pyo3::exceptions::PyValueError::new_err("Failed to save screenshot"))
             }
         }
@@ -414,17 +445,21 @@ impl WinDriver {
     /// Returns:
     ///     bool: True if the application was successfully launched or activated
     pub fn launch_or_activate_app(&self, app_path: String, xpath: String) -> PyResult<bool> {
+        debug!("WinDriver::launch_or_activate_app called with {} as app path and {} as xpath element.", app_path, xpath);
+
         let result = launch_or_activate_application(&app_path, &xpath);
         PyResult::Ok(result)
     }
 
     fn refresh(&mut self) -> PyResult<()> {
+        debug!("WinDriver::refresh called.");
         // get the ui tree in a separate thread
         let (tx, rx): (Sender<_>, Receiver<UITree>) = channel();
         thread::spawn(|| {
+            debug!("Spawning thread to get UI tree");
             get_all_elements(tx, None);
         });
-        printfmt!("Spawned separate thread to refresh ui tree");
+        info!("Spawned separate thread to refresh ui tree");
         
         let ui_tree: UITree = rx.recv().unwrap();
         
@@ -435,6 +470,7 @@ impl WinDriver {
             *WINDRIVER.lock().unwrap() = Some(self.clone());
         }
 
+        info!("WinDriver successfully created");
         PyResult::Ok(())
     }
 }
