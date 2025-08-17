@@ -8,9 +8,16 @@ mod tree_map;
 use tree_map::UITreeMap;
 
 mod uiexplore;
-pub use uiexplore::{UITree, UIElementInTree, get_all_elements};
+pub use uiexplore::{SaveUIElement, UITree, UIElementInTree, get_all_elements};
+
+mod uiexplore_xml;
+pub use uiexplore_xml::{SaveUIElement as SaveUIElementXML, UITree as UITreeXML, UIElementInTree as UIElementInTreeXML, get_all_elements_xml};
+
 
 mod uiexplore_iter;
-pub use uiexplore_iter::{UITree as UITreeIter, UIElementInTree as UIElementInTreeIter, get_all_elements_iterative};
+pub use uiexplore_iter::{SaveUIElement as SaveUIElementIter, UITree as UITreeIter, UIElementInTree as UIElementInTreeIter, get_all_elements_iterative};
 
-mod xml;
+// mod xml;
+
+mod conversion;
+pub use conversion::ConvertFromControlType;

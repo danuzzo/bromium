@@ -6,7 +6,12 @@ edition = "2024"
 [dependencies]
 uiautomation.workspace = true
 chrono.workspace = true
-quick-xml = "0.38.0"
+
+xmlutil = { path = "../xmlutil" }
+
+# quick-xml = "0.38.0"
 
 # [profile.release]
+# opt-level = 3
+# lto = true
 # debug = true

@@ -1,4 +1,4 @@
-#![allow(dead_code)]
+// #![allow(dead_code)]
 
 use quick_xml::events::{BytesCData, BytesEnd, BytesStart, BytesText, Event};
 use quick_xml::writer::Writer;
@@ -83,14 +83,12 @@ impl XMLAttributes {
 #[derive(Clone)]
 pub struct XMLWriter {
    writer: Writer<Cursor<Vec<u8>>>,
-   stack: Vec<String>,
 }
 
 impl XMLWriter {
     pub fn new() -> Self {
         let writer = Writer::new(Cursor::new(Vec::new()));
-        let stack: Vec<String> = Vec::new();
-        XMLWriter { writer, stack }
+        XMLWriter { writer }
     }
 
     pub fn write_start_element(&mut self, name: &str) -> Result<(), Error> {
@@ -143,5 +141,86 @@ impl XMLWriter {
         String::from_utf8(self.get_xml_raw()).unwrap()
     }
 
+}
+
+#[derive(Debug, Clone)]
+pub struct XMLDomNode {
+    pub name: String,
+    pub attributes: XMLAttributes,
+    pub text: Option<String>,
+    pub children: Vec<XMLDomNode>,
+}
+
+impl XMLDomNode {
+    pub fn new(name: &str) -> Self {
+        XMLDomNode {
+            name: name.to_string(),
+            attributes: XMLAttributes::new(),
+            text: None,
+            children: Vec::new(),
+        }
+    }
+
+    pub fn with_text(mut self, text: &str) -> Self {
+        self.text = Some(text.to_string());
+        self
+    }
+
+    pub fn add_child(&mut self, child: XMLDomNode) -> &mut Self {
+        self.children.push(child);
+        self.children.last_mut().unwrap()
+    }
+
+    pub fn set_attribute(&mut self, name: &str, value: &str) {
+        self.attributes.set(name, value);
+    }
+
+    pub fn get_first_child(&self) -> Option<&XMLDomNode> {
+        self.children.first()
+    }
+}
+
+pub struct XMLDomWriter {
+    root: Option<XMLDomNode>,
+}
+
+impl XMLDomWriter {
+    pub fn new() -> Self {
+        XMLDomWriter { root: None }
+    }
+
+    pub fn set_root(&mut self, node: XMLDomNode) {
+        self.root = Some(node);
+    }
+
+    pub fn get_root_mut(&mut self) -> Option<&mut XMLDomNode> {
+        self.root.as_mut()
+    }
+
+    pub fn to_string(&self) -> Result<String, Error> {
+        let mut writer = XMLWriter::new();
+        if let Some(ref root) = self.root {
+            // special handling to eliminate duplicate root node from the XML output
+            // take the frist child of the root instead of the root itself
+            Self::write_node(&mut writer, root.get_first_child().unwrap())?;
+        }
+        Ok(writer.get_xml_string())
+    }
+
+    fn write_node(writer: &mut XMLWriter, node: &XMLDomNode) -> Result<(), Error> {
+        let mut start = BytesStart::new(node.name.as_str());
+        for (k, v) in node.attributes.get_all() {
+            start.push_attribute((k.as_str(), v.as_str()));
+        }
+        writer.writer.write_event(Event::Start(start))?;
+        if let Some(ref text) = node.text {
+            writer.write_text(text)?;
+        }
+        for child in &node.children {
+            Self::write_node(writer, child)?;
+        }
+        writer.writer.write_event(Event::End(BytesEnd::new(node.name.as_str())))?;
+        Ok(())
+    }
 }
 

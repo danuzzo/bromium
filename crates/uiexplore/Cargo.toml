@@ -1,0 +1,23 @@
+[package]
+name = "uiexplore"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+uiautomation.workspace = true
+chrono.workspace = true
+windows.workspace = true
+
+# uiautomation = "0.21.2" # "0.13.4"
+# chrono = "0.4.39"
+# windows = {version = "0.61.1", features = ["Win32_Graphics_Gdi", "Win32_Foundation", "Win32_UI_HiDpi", "Win32_UI_WindowsAndMessaging"]}
+
+uitree = { path = "../uitree" }
+xmlutil = { path = "../xmlutil" }
+
+egui = "0.32.0"
+wgpu = "25.0.2"
+eframe = {version = "0.32.0", features = ["wgpu"] } #, no-default-features = true, features = ["glow"]}
+env_logger = "0.11.5"
+time = "0.3.37"
+

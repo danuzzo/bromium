@@ -1,8 +1,10 @@
-#![allow(dead_code)]
 
+
+use crate::conversion::ConvertFromControlType;
 
 use crate::{printfmt, UITreeMap};
-// use xmlutil::xml::{XMLDomWriter, XMLDomNode};
+use xmlutil::xml::{XMLDomWriter, XMLDomNode};
+
 
 use std::sync::mpsc::Sender;
 
@@ -35,16 +37,21 @@ impl UIElementInTree {
 #[derive(Debug, Clone)]
 pub struct UITree {
     tree: UITreeMap<SaveUIElement>,
+    xml_dom_tree: String,
     ui_elements: Vec<UIElementInTree>,
 }
 
 impl UITree {
-    pub fn new(tree: UITreeMap<SaveUIElement>, ui_elements: Vec<UIElementInTree>) -> Self {
-        UITree {tree, ui_elements} 
+    pub fn new(tree: UITreeMap<SaveUIElement>, xml_dom_tree: String, ui_elements: Vec<UIElementInTree>) -> Self {
+        UITree {tree, xml_dom_tree, ui_elements} 
     }
 
     pub fn get_tree(&self) -> &UITreeMap<SaveUIElement> {
         &self.tree
+    }
+
+    pub fn get_xml_dom_tree(&self) -> &str {
+        &self.xml_dom_tree
     }
 
     pub fn get_elements(&self) -> &Vec<UIElementInTree> {
@@ -213,7 +220,7 @@ impl SaveUIElement {
 }
 
 
-pub fn get_all_elements(tx: Sender<UITree>, max_depth: Option<usize>)  {   
+pub fn get_all_elements_xml(tx: Sender<UITree>, max_depth: Option<usize>) {   
     
     let automation = UIAutomation::new().unwrap();
     // control view walker
@@ -222,7 +229,7 @@ pub fn get_all_elements(tx: Sender<UITree>, max_depth: Option<usize>)  {
     // allocate a new ui elements vector with a capacity of 10000 elements
     let mut ui_elements: Vec<UIElementInTree> = Vec::with_capacity(10000);
 
-    // let mut xml_writer = XMLDomWriter::new();
+    let mut xml_writer = XMLDomWriter::new();
 
     // get the desktop and all UI elements below the desktop
     let root = automation.get_root_element().unwrap();
@@ -233,22 +240,22 @@ pub fn get_all_elements(tx: Sender<UITree>, max_depth: Option<usize>)  {
     let ui_elem_in_tree = UIElementInTree::new(ui_elem_props, 0);    
     // let mut ui_elements: Vec<UIElementInTree> = vec![ui_elem_in_tree];
     ui_elements.push(ui_elem_in_tree);
-    // xml_writer.set_root(XMLDomNode::new(root.get_classname().unwrap().as_str()));
-    // let xml_root = xml_writer.get_root_mut().unwrap();
-    // xml_root.set_attribute("Name", root.get_name().unwrap_or("No name defined".to_string()).as_str());
+    xml_writer.set_root(XMLDomNode::new(root.get_classname().unwrap().as_str()));
+    let xml_root = xml_writer.get_root_mut().unwrap();
+    xml_root.set_attribute("RtID", runtime_id.as_str());
+    xml_root.set_attribute("Name", root.get_name().unwrap_or("No name defined".to_string()).as_str());
 
     // printfmt!("Starting to walk the UI tree from root element: {}", root.get_name().unwrap_or("Unknown".to_string()));
     // printfmt!("Starting to walk the UI tree from root element");
     if let Ok(_first_child) = walker.get_first_child(&root) {     
         // itarate over all child ui elements
-        get_element(&mut tree, &mut ui_elements,  0, &walker, &root,  0, 0, max_depth); //xml_root,
+        get_element(&mut tree, &mut ui_elements,  0, &walker, &root, xml_root, 0, 0, max_depth);
     }
 
     // creating the XML DOM tree
     // printfmt!("Creating XML DOM tree...");
-    // let _xml_dom_tree = xml_writer.to_string().unwrap();
+    let xml_dom_tree = xml_writer.to_string().unwrap();
     // printfmt!("XML DOM tree created successfully");
-    // printfmt!("XML DOM tree: {}", xml_dom_tree);
 
     // sorting the elements by z_order and then by ascending size of the bounding rectangle
     printfmt!("Sorting UI elements by size and z-order...");
@@ -256,7 +263,7 @@ pub fn get_all_elements(tx: Sender<UITree>, max_depth: Option<usize>)  {
     ui_elements.sort_by(|a, b| a.get_element_props().z_order.cmp(&b.get_element_props().z_order));
 
     // pack the tree and ui_elements vector into a single struct
-    let ui_tree = UITree::new(tree, ui_elements);
+    let ui_tree = UITree::new(tree, xml_dom_tree, ui_elements);
 
     // send the tree containing all UI elements back to the main thread
     printfmt!("Sending UI tree with {} elements to the main thread...", ui_tree.get_elements().len());
@@ -265,7 +272,7 @@ pub fn get_all_elements(tx: Sender<UITree>, max_depth: Option<usize>)  {
 }
 
 
-fn get_element(mut tree: &mut UITreeMap<SaveUIElement>, mut ui_elements: &mut Vec<UIElementInTree>, parent: usize, walker: &UITreeWalker, element: &UIElement, level: usize, mut z_order: usize, max_depth: Option<usize>)  { //xml_dom_node: &mut XMLDomNode,
+fn get_element(mut tree: &mut UITreeMap<SaveUIElement>, mut ui_elements: &mut Vec<UIElementInTree>, parent: usize, walker: &UITreeWalker, element: &UIElement, xml_dom_node: &mut XMLDomNode, level: usize, mut z_order: usize, max_depth: Option<usize>)  {
     if let Some(limit) = max_depth {
         if level > limit {
             return;
@@ -289,14 +296,17 @@ fn get_element(mut tree: &mut UITreeMap<SaveUIElement>, mut ui_elements: &mut Ve
     ui_elements.push(ui_elem_in_tree);
     // pass through the XML DOM node to avoid computation of the XML DOM tree during performance testing
     // let curr_xml_dom_node = xml_dom_node;
-    // let curr_xml_dom_node = xml_dom_node.add_child(XMLDomNode::new(element.get_classname().unwrap().as_str()));
-    // curr_xml_dom_node.set_attribute("Name", element.get_name().unwrap_or("No name defined".to_string()).as_str());
+        
+    let curr_xml_dom_node = xml_dom_node.add_child(XMLDomNode::new(element.get_control_type().unwrap().as_str()));
+    curr_xml_dom_node.set_attribute("RtID", runtime_id.as_str());
+    curr_xml_dom_node.set_attribute("Name", element.get_name().unwrap_or("No name defined".to_string()).as_str());
+    
 
     // Walking the children of the current element
     if let Ok(child) = walker.get_first_child(&element) {
         // getting child elements
         // printfmt!("Found child element: {}", child.get_name().unwrap_or("Unknown".to_string()));
-        get_element(&mut tree, &mut ui_elements, parent, walker, &child, level + 1, z_order, max_depth); // curr_xml_dom_node,
+        get_element(&mut tree, &mut ui_elements, parent, walker, &child, curr_xml_dom_node, level + 1, z_order, max_depth);
         let mut next = child;
         // walking siblings
         while let Ok(sibling) = walker.get_next_sibling(&next) {
@@ -305,7 +315,7 @@ fn get_element(mut tree: &mut UITreeMap<SaveUIElement>, mut ui_elements: &mut Ve
                 z_order += 1;
             }
             // printfmt!("Found sibling element: {}", sibling.get_name().unwrap_or("Unknown".to_string()));
-            get_element(&mut tree, &mut ui_elements, parent, walker, &sibling,   level + 1, z_order, max_depth); // curr_xml_dom_node,
+            get_element(&mut tree, &mut ui_elements, parent, walker, &sibling, curr_xml_dom_node,  level + 1, z_order, max_depth);
             next = sibling;
         }
     }    

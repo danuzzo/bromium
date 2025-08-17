@@ -4,10 +4,11 @@
 # Admin files
 *.xls*
 *.txt
+*.ppt"
 
 # backup files
 /.archive
-*.bck
+*.bck*
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

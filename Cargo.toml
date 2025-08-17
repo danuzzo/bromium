@@ -3,12 +3,16 @@ resolver = "3"
 members = [
     "crates/bromium", 
     "crates/screen-capture", 
-    "crates/uitree",
+    "crates/uiexplore",
+    "crates/uitree", 
+    "crates/xmlutil",
+    "crates/winevent-monitor", 
 ]
 
 [workspace.dependencies]
-uiautomation = "0.18.0"
+uiautomation = "0.22.2"
 chrono = "0.4.41"
+windows = { version = "0.61.1", features = ["Win32_Graphics_Gdi", "Win32_Foundation", "Win32_UI_HiDpi", "Win32_UI_WindowsAndMessaging"] }
 
 [profile.release-with-debug]
 inherits = "release"

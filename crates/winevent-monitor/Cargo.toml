@@ -1,0 +1,10 @@
+[package]
+name = "winevent-monitor"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+chrono.workspace = true
+uiautomation.workspace = true
+windows.workspace = true
+win_event_hook = "0.4.0"
