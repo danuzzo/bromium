@@ -32,7 +32,7 @@ mod rectangle;
 /// A Python module implemented in Rust.
 #[pymodule]
 fn bromium(m: &Bound<'_, PyModule>) -> PyResult<()> {
-    // Initialize logger
+    // Initialize logger on module import
     logging::init_logger();
     
     m.add_class::<windriver::WinDriver>()?;
@@ -40,5 +40,12 @@ fn bromium(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<logging::LogLevel>()?;
     m.add_function(wrap_pyfunction!(logging::set_log_level, m)?)?;
     m.add_function(wrap_pyfunction!(logging::get_log_level, m)?)?;
+    m.add_function(wrap_pyfunction!(logging::set_log_file, m)?)?;
+    m.add_function(wrap_pyfunction!(logging::set_log_directory, m)?)?;
+    m.add_function(wrap_pyfunction!(logging::get_log_file, m)?)?;
+    m.add_function(wrap_pyfunction!(logging::get_default_log_directory, m)?)?;
+    m.add_function(wrap_pyfunction!(logging::enable_console_logging, m)?)?;
+    m.add_function(wrap_pyfunction!(logging::enable_file_logging, m)?)?;
+    m.add_function(wrap_pyfunction!(logging::reset_log_file, m)?)?;
     Ok(())
 }

@@ -526,3 +526,47 @@ def get_log_level() -> str:
     - str: The current log level as a string
     """
     pass
+
+def set_log_file(path: str) -> None:
+    """
+    Set the full path for the log file. Creates parent directories if needed.
+    
+    Parameters:
+    - path (str): Full path to the log file
+    
+    Example:
+        import bromium
+        bromium.set_log_file("D:/my_logs/bromium_custom.log")
+    """
+    pass
+
+def set_log_directory(dir_path: str) -> None:
+    """
+    Set a custom directory for log files. A timestamped log file will be created in this directory.
+    
+    Parameters:
+    - dir_path (str): Directory path where log files should be created
+    
+    Example:
+        import bromium
+        bromium.set_log_directory("D:/my_custom_logs")
+    """
+    pass
+
+def get_log_file() -> str:
+    """
+    Get the current log file path. Returns default path if not set.
+    
+    Returns:
+    - str: The current log file path
+    """
+    pass
+
+def get_default_log_directory() -> str:
+    """
+    Get the default log directory path (C:\\bromium_logs on Windows).
+    
+    Returns:
+    - str: The default log directory path
+    """
+    pass
