@@ -9,13 +9,13 @@ use std::fs::{File, OpenOptions};
 use std::io::{BufWriter, Write};
 
 
-struct FileWriter {
+pub struct FileWriter {
     // outfile_name: PathBuf,
     outfile_writer: BufWriter<File>,
 }
 
 impl FileWriter {
-    fn new(outfile_prefix: &str) -> Self {
+    pub fn new(outfile_prefix: &str) -> Self {
         
         let tmstmp = Utc::now().format("%Y%m%d%H%M%S").to_string();
         let filename = if outfile_prefix.contains("xml") {
@@ -37,7 +37,7 @@ impl FileWriter {
         FileWriter { outfile_writer }
     }
 
-    fn write(&mut self, content: &str) {
+    pub fn write(&mut self, content: &str) {
         self.outfile_writer.write_all(content.as_bytes())
             .expect("Unable to write to file");
     }

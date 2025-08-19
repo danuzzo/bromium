@@ -16,10 +16,11 @@ pub struct UITreeNode<T> {
 pub struct UITreeMap<T> {
     nodes: Vec<UITreeNode<T>>,
     name_to_index: UIHashMap<String, usize>, // Name-to-index map for optional lookups
+    rtid_to_index: UIHashMap<String, usize>,
 }
 
 impl<T> UITreeMap<T> {
-    pub fn new(root_name: String, root_data: T) -> Self {
+    pub fn new(root_name: String, rt_id: String, root_data: T) -> Self {
         let root = UITreeNode {
             name: root_name.clone(),
             index: 0,
@@ -29,11 +30,15 @@ impl<T> UITreeMap<T> {
         };
 
         let mut name_to_index = UIHashMap::default();
+        let mut rtid_to_index = UIHashMap::default();
+        
         name_to_index.insert(root_name, 0);
+        rtid_to_index.insert(rt_id, 0);
 
         Self {
             nodes: vec![root],
             name_to_index,
+            rtid_to_index,
         }
     }
 
@@ -49,7 +54,7 @@ impl<T> UITreeMap<T> {
         &self.nodes[index]
     }
 
-    pub fn add_child(&mut self, parent: usize, name: &str, data: T) -> usize {
+    pub fn add_child(&mut self, parent: usize, name: &str, rt_id: &str, data: T) -> usize {
         let index = self.nodes.len();
         let node = UITreeNode {
             name: name.to_string(),
@@ -60,6 +65,7 @@ impl<T> UITreeMap<T> {
         };
 
         self.name_to_index.insert(name.to_string(), index);
+        self.rtid_to_index.insert(rt_id.to_string(), index);
         self.nodes[parent].children.push(index);
         self.nodes.push(node);
         index
@@ -74,6 +80,29 @@ impl<T> UITreeMap<T> {
         }
         path.reverse(); // Reverse to get the path from root to the node
         path
+    }
+
+    pub fn get_element_by_name(&self, name: &str) -> Option<&UITreeNode<T>> {
+
+        let mut ret_val: Option<&UITreeNode<T>> = None;
+
+        if let Some(idx) = self.name_to_index.get(name) {
+            ret_val = Some(self.node(*idx));
+        }
+
+        ret_val
+    }
+
+    pub fn get_element_by_runtime_id(&self, runtime_id: &str) -> Option<&UITreeNode<T>> {
+
+        let mut ret_val: Option<&UITreeNode<T>> = None;
+
+        if let Some(idx) = self.rtid_to_index.get(runtime_id) {
+            ret_val = Some(self.node(*idx));
+        }
+
+        ret_val
+
     }
 
     /// Walks the tree and calls the callback on each node's data, immutably
@@ -169,8 +198,8 @@ pub trait UITree {
         0
     }
 
-    fn add_child<'a>(&'a mut self, parent: usize, name: &str, data: Self::Data) -> UITreeCursor<'a, Self::Data> {
-        let child_index = self.tree_mut().add_child(parent, name, data);
+    fn add_child<'a>(&'a mut self, parent: usize, name: &str, rt_id: &str, data: Self::Data) -> UITreeCursor<'a, Self::Data> {
+        let child_index = self.tree_mut().add_child(parent, name, rt_id, data);
         UITreeCursor {
             tree: self.tree_mut(),
             parent_index: parent,
@@ -182,6 +211,7 @@ pub trait UITree {
         let mut visited = UIHashSet::new();
         self.tree().debug_tree(self.root(), 0, &display, &mut visited);
     }
+
 }
 
 // Cursor for chaining child and sibling additions
@@ -201,16 +231,16 @@ impl<'a, T: Default> UITreeCursor<'a, T> {
     }
 
     /// Add a child to the current node.
-    pub fn add_child(mut self, name: &str, data: T) -> Self {
-        let child_index = self.tree.add_child(self.current_index, name, data);
+    pub fn add_child(mut self, name: &str, rt_id: &str, data: T) -> Self {
+        let child_index = self.tree.add_child(self.current_index, name, rt_id, data);
         self.parent_index = self.current_index;
         self.current_index = child_index;
         self
     }
 
     /// Add a sibling to the current node.
-    pub fn add_sibling(mut self, name: &str, data: T) -> Self {
-        let sibling_index = self.tree.add_child(self.parent_index, name, data);
+    pub fn add_sibling(mut self, name: &str, rt_id: &str, data: T) -> Self {
+        let sibling_index = self.tree.add_child(self.parent_index, name, rt_id, data);
         self.current_index = sibling_index;
         self
     }

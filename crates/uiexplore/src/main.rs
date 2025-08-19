@@ -15,6 +15,7 @@ use windows::Win32::Foundation::{POINT, HANDLE};
 
 
 mod rectangle;
+mod commons;
 // mod winevent;
 
 use ::uiexplore::signal_file;

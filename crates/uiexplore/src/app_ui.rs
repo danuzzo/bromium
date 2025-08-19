@@ -76,7 +76,13 @@ impl TreeState {
         self.refresh_path_to_active_ui_element = false;
     }
 
-    
+    // fn get_active_element_mut(&mut self) -> Option<&mut SaveUIElementXML> {
+    //     if self.active_element.is_some() {
+    //         self.active_element.as_mut()
+    //     } else {
+    //         None
+    //     }        
+    // }
 
 }
 #[derive(Clone)]
@@ -602,6 +608,7 @@ impl eframe::App for UIExplorer {
                         ui.label("Automation ID:");
                         ui.label(active_element.get_element().get_automation_id().unwrap_or_default()); 
                         ui.end_row();
+
 
                         let xpath = self.ui_tree.get_xpath_for_element(state.active_ui_element.unwrap_or(0));
                         ui.label("XPath:");

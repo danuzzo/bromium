@@ -1,14 +1,9 @@
-#![allow(dead_code)]
-
-
 use crate::{printfmt, UITreeMap};
 
-
 use std::sync::mpsc::Sender;
-
 use uiautomation::core::UIAutomation;
 use uiautomation::{UIElement, UITreeWalker};
-use uiautomation::types::Handle;
+
 
 #[derive(Debug, Clone)]
 pub struct UIElementInTree {
@@ -125,66 +120,66 @@ impl UITree {
 }
 
 
-#[derive(Debug, Clone)]
-pub struct UIElementProps {
-    pub name: String,
-    pub classname: String,
-    pub control_type: String,
-    pub localized_control_type: String,
-    pub framework_id: String,
-    pub runtime_id: Vec<i32>,
-    pub automation_id: String,
-    pub handle: isize,
-    pub bounding_rect: uiautomation::types::Rect,
-    pub bounding_rect_size: i32,
-    pub level: usize,
-    pub z_order: usize,
-}
+// #[derive(Debug, Clone)]
+// pub struct UIElementProps {
+//     pub name: String,
+//     pub classname: String,
+//     pub control_type: String,
+//     pub localized_control_type: String,
+//     pub framework_id: String,
+//     pub runtime_id: Vec<i32>,
+//     pub automation_id: String,
+//     pub handle: isize,
+//     pub bounding_rect: uiautomation::types::Rect,
+//     pub bounding_rect_size: i32,
+//     pub level: usize,
+//     pub z_order: usize,
+// }
 
-impl UIElementProps {
-    pub fn new(from_element: UIElement, level: usize, z_order: usize) -> Self {
-        let mut elem = UIElementProps::from(from_element);
-        elem.z_order = z_order;
-        elem.level = level;
-        elem
-    }
-}
+// impl UIElementProps {
+//     pub fn new(from_element: UIElement, level: usize, z_order: usize) -> Self {
+//         let mut elem = UIElementProps::from(from_element);
+//         elem.z_order = z_order;
+//         elem.level = level;
+//         elem
+//     }
+// }
 
-impl From<UIElement> for UIElementProps {
-    fn from(item: UIElement) -> Self {
+// impl From<UIElement> for UIElementProps {
+//     fn from(item: UIElement) -> Self {
 
-        let name: String = item.get_name().unwrap_or("".to_string());
-        let classname: String = item.get_classname().unwrap_or("".to_string());
+//         let name: String = item.get_name().unwrap_or("".to_string());
+//         let classname: String = item.get_classname().unwrap_or("".to_string());
         
-        let mut control_type: String = "".to_string();
-        if let Ok(ctrl_type) =  item.get_control_type() {
-            control_type = ctrl_type.to_string();    
-        }
+//         let mut control_type: String = "".to_string();
+//         if let Ok(ctrl_type) =  item.get_control_type() {
+//             control_type = ctrl_type.to_string();    
+//         }
 
-        let localized_control_type: String = item.get_localized_control_type().unwrap_or("".to_string());
-        let framework_id: String = item.get_framework_id().unwrap_or("".to_string());
-        let runtime_id: Vec<i32> = item.get_runtime_id().unwrap_or(Vec::new());
-        let automation_id: String = item.get_automation_id().unwrap_or("".to_string());
-        let handle : isize = item.get_native_window_handle().unwrap_or(Handle::from(0 as isize)).into();
-        let bounding_rect: uiautomation::types::Rect = item.get_bounding_rectangle().unwrap_or(uiautomation::types::Rect::new(0, 0, 0, 0));
-        let bounding_rect_size: i32 = (bounding_rect.get_right() - bounding_rect.get_left()) * (bounding_rect.get_bottom() - bounding_rect.get_top());            
+//         let localized_control_type: String = item.get_localized_control_type().unwrap_or("".to_string());
+//         let framework_id: String = item.get_framework_id().unwrap_or("".to_string());
+//         let runtime_id: Vec<i32> = item.get_runtime_id().unwrap_or(Vec::new());
+//         let automation_id: String = item.get_automation_id().unwrap_or("".to_string());
+//         let handle : isize = item.get_native_window_handle().unwrap_or(Handle::from(0 as isize)).into();
+//         let bounding_rect: uiautomation::types::Rect = item.get_bounding_rectangle().unwrap_or(uiautomation::types::Rect::new(0, 0, 0, 0));
+//         let bounding_rect_size: i32 = (bounding_rect.get_right() - bounding_rect.get_left()) * (bounding_rect.get_bottom() - bounding_rect.get_top());            
         
-        UIElementProps {
-            name,
-            classname,
-            control_type,
-            localized_control_type,
-            framework_id,
-            runtime_id,
-            automation_id,
-            handle,
-            bounding_rect,
-            bounding_rect_size,
-            level: 0,
-            z_order: 0,
-        }
-    }
-}
+//         UIElementProps {
+//             name,
+//             classname,
+//             control_type,
+//             localized_control_type,
+//             framework_id,
+//             runtime_id,
+//             automation_id,
+//             handle,
+//             bounding_rect,
+//             bounding_rect_size,
+//             level: 0,
+//             z_order: 0,
+//         }
+//     }
+// }
 
 #[derive(Debug, Clone)]
 pub struct SaveUIElement {
@@ -225,7 +220,7 @@ pub fn get_all_elements_iterative(tx: Sender<UITree>, max_depth: Option<usize>) 
     let runtime_id = root.get_runtime_id().unwrap_or(vec![0, 0, 0, 0]).iter().map(|x| x.to_string()).collect::<Vec<String>>().join("-");
     let item = format!("'{}' {} ({} | {} | {})", root.get_name().unwrap(), root.get_localized_control_type().unwrap(), root.get_classname().unwrap(), root.get_framework_id().unwrap(), runtime_id);
     let ui_elem_props = SaveUIElement::new(root.clone(), 0, 999);
-    let mut tree = UITreeMap::new(item, ui_elem_props.clone());
+    let mut tree = UITreeMap::new(item, runtime_id.clone(), ui_elem_props.clone());
     let ui_elem_in_tree = UIElementInTree::new(ui_elem_props, 0);    
     // let mut ui_elements: Vec<UIElementInTree> = vec![ui_elem_in_tree];
     ui_elements.push(ui_elem_in_tree);
@@ -334,7 +329,7 @@ fn get_element_iterative(
             SaveUIElement::new(element.clone(), level, z_order)
         };
 
-        let new_parent = tree.add_child(parent, &item, ui_elem_props.clone());
+        let new_parent = tree.add_child(parent, &item, &runtime_id, ui_elem_props.clone());
         let ui_elem_in_tree = UIElementInTree::new(ui_elem_props, new_parent);
         ui_elements.push(ui_elem_in_tree);
 

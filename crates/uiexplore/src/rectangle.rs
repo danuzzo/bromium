@@ -19,7 +19,7 @@ pub fn get_point_bounding_rect<'a>(point: &'a POINT, ui_elements: &'a Vec<UIElem
     // let mut cntr = 0;
     for element in ui_elements {
         // cntr += 1;
-        if is_inside_rectancle(&element.get_element_props().get_element().get_bounding_rectangle().unwrap(), point.x, point.y) {
+        if is_inside_rectancle(&element.get_element_props().get_element().get_bounding_rectangle().unwrap_or(uiautomation::types::Rect::new(0, 0, 0, 0)), point.x, point.y) {
             // println!("point: {{ x: {}, y: {} }} searched elements: {} / Found element: {{ name: '{}', control_type: '{}' bounding_rect: {} }}", point.x, point.y, cntr, element.name, element.control_type, element.bounding_rect);        
             return Some(element);
         }

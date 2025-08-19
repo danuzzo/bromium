@@ -1,14 +1,9 @@
-#![allow(dead_code)]
-
-
 use crate::{printfmt, UITreeMap};
-// use xmlutil::xml::{XMLDomWriter, XMLDomNode};
 
 use std::sync::mpsc::Sender;
-
 use uiautomation::core::UIAutomation;
 use uiautomation::{UIElement, UITreeWalker};
-// use uiautomation::types::Handle;
+
 
 
 
@@ -229,26 +224,15 @@ pub fn get_all_elements(tx: Sender<UITree>, max_depth: Option<usize>)  {
     let runtime_id = root.get_runtime_id().unwrap_or(vec![0, 0, 0, 0]).iter().map(|x| x.to_string()).collect::<Vec<String>>().join("-");
     let item = format!("'{}' {} ({} | {} | {})", root.get_name().unwrap(), root.get_localized_control_type().unwrap(), root.get_classname().unwrap(), root.get_framework_id().unwrap(), runtime_id);
     let ui_elem_props = SaveUIElement::new(root.clone(), 0, 999);
-    let mut tree = UITreeMap::new(item, ui_elem_props.clone());
+    let mut tree = UITreeMap::new(item, runtime_id.clone(), ui_elem_props.clone());
     let ui_elem_in_tree = UIElementInTree::new(ui_elem_props, 0);    
     // let mut ui_elements: Vec<UIElementInTree> = vec![ui_elem_in_tree];
     ui_elements.push(ui_elem_in_tree);
-    // xml_writer.set_root(XMLDomNode::new(root.get_classname().unwrap().as_str()));
-    // let xml_root = xml_writer.get_root_mut().unwrap();
-    // xml_root.set_attribute("Name", root.get_name().unwrap_or("No name defined".to_string()).as_str());
 
-    // printfmt!("Starting to walk the UI tree from root element: {}", root.get_name().unwrap_or("Unknown".to_string()));
-    // printfmt!("Starting to walk the UI tree from root element");
     if let Ok(_first_child) = walker.get_first_child(&root) {     
         // itarate over all child ui elements
         get_element(&mut tree, &mut ui_elements,  0, &walker, &root,  0, 0, max_depth); //xml_root,
     }
-
-    // creating the XML DOM tree
-    // printfmt!("Creating XML DOM tree...");
-    // let _xml_dom_tree = xml_writer.to_string().unwrap();
-    // printfmt!("XML DOM tree created successfully");
-    // printfmt!("XML DOM tree: {}", xml_dom_tree);
 
     // sorting the elements by z_order and then by ascending size of the bounding rectangle
     printfmt!("Sorting UI elements by size and z-order...");
@@ -284,7 +268,7 @@ fn get_element(mut tree: &mut UITreeMap<SaveUIElement>, mut ui_elements: &mut Ve
         ui_elem_props = SaveUIElement::new(element.clone(), level, z_order);
     }
     
-    let parent = tree.add_child(parent, item.as_str(), ui_elem_props.clone());
+    let parent = tree.add_child(parent, item.as_str(), runtime_id.as_str(), ui_elem_props.clone());
     let ui_elem_in_tree = UIElementInTree::new(ui_elem_props, parent);
     ui_elements.push(ui_elem_in_tree);
     // pass through the XML DOM node to avoid computation of the XML DOM tree during performance testing
@@ -311,66 +295,6 @@ fn get_element(mut tree: &mut UITreeMap<SaveUIElement>, mut ui_elements: &mut Ve
     }    
     
 }
-
-// fn get_element_iterative(
-//     tree: &mut UITreeMap<SaveUIElement>,
-//     ui_elements: &mut Vec<UIElementInTree>,
-//     parent: usize,
-//     walker: &UITreeWalker,
-//     element: &UIElement,
-//     level: usize,
-//     z_order: usize,
-//     max_depth: Option<usize>,
-// ) {
-//     // Stack holds (parent, element, level, z_order)
-//     let mut stack = Vec::new();
-//     stack.push((parent, element.clone(), level, z_order));
-
-//     while let Some((parent, element, level, z_order)) = stack.pop() {
-//         if let Some(limit) = max_depth {
-//             if level > limit {
-//                 continue;
-//             }
-//         }
-
-//         let runtime_id = element.get_runtime_id().unwrap_or(vec![0, 0, 0, 0])
-//             .iter().map(|x| x.to_string()).collect::<Vec<String>>().join("-");
-//         let item = format!(
-//             "'{}' {} ({} | {} | {})",
-//             element.get_name().unwrap_or_default(),
-//             element.get_localized_control_type().unwrap_or_default(),
-//             element.get_classname().unwrap_or_default(),
-//             element.get_framework_id().unwrap_or_default(),
-//             runtime_id
-//         );
-
-//         let ui_elem_props = if level == 0 {
-//             SaveUIElement::new(element.clone(), level, 999)
-//         } else {
-//             SaveUIElement::new(element.clone(), level, z_order)
-//         };
-
-//         let new_parent = tree.add_child(parent, &item, ui_elem_props.clone());
-//         let ui_elem_in_tree = UIElementInTree::new(ui_elem_props, new_parent);
-//         ui_elements.push(ui_elem_in_tree);
-
-//         // Walk children (push siblings in reverse order for left-to-right traversal)
-//         if let Ok(child) = walker.get_first_child(&element) {
-//             let mut siblings = vec![child.clone()];
-//             let mut next = child;
-//             while let Ok(sibling) = walker.get_next_sibling(&next) {
-//                 siblings.push(sibling.clone());
-//                 next = sibling;
-//             }
-//             // For z_order, increment for each sibling at level 1
-//             let sibling_z_order = z_order;
-//             for (i, sibling) in siblings.into_iter().enumerate().rev() {
-//                 let next_z_order = if level + 1 == 1 { sibling_z_order + i } else { sibling_z_order };
-//                 stack.push((new_parent, sibling, level + 1, next_z_order));
-//             }
-//         }
-//     }
-// }
 
 // Function that tries to match the original C++ XPath format
 fn match_original_format(xpath: &str) -> String {

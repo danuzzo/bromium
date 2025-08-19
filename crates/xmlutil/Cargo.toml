@@ -4,5 +4,8 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-xrust = "1.2.5"
+anyhow = "1.0.99"
+xee-xpath = "0.1.4"
+ariadne = "0.5.1"
+roxmltree = "0.20.0"
 quick-xml = "0.38.0"
