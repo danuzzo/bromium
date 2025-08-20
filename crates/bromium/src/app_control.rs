@@ -14,9 +14,12 @@ use winapi::um::winuser::{
 };
 use winapi::shared::windef::HWND;
 use winapi::shared::minwindef::{BOOL, LPARAM};
+use log::{debug, error, info, trace, warn};
 
 // Extract window names from XPath
 fn extract_window_names_from_xpath(xpath: &str) -> Vec<String> {
+    debug!("Extract window names from XPath: {}", xpath);
+
     let mut window_names = Vec::new();
     
     // Try various patterns to extract window names
@@ -41,6 +44,8 @@ fn extract_window_names_from_xpath(xpath: &str) -> Vec<String> {
 
 // Scan for all windows on the system
 fn scan_for_all_windows() -> Vec<(String, HWND)> {
+    debug!("Scanning for all windows on the system");
+
     // Create a struct to collect all windows
     struct AllWindowsData {
         windows: Vec<(String, HWND)>,
@@ -80,11 +85,14 @@ fn scan_for_all_windows() -> Vec<(String, HWND)> {
         );
     }
     
+    debug!("Window scan complete, found {} windows", data.windows.len());
     data.windows
 }
 
 // Find window with partial name
 fn find_window_with_partial_name(name_part: &str) -> Option<String> {
+    debug!("Find window with partial name: '{}'", name_part);
+
     struct WindowSearchData {
         search_term: String,
         found_name: Option<String>,
@@ -123,11 +131,22 @@ fn find_window_with_partial_name(name_part: &str) -> Option<String> {
         );
     }
     
+    match data.found_name {
+        Some(ref name) => {
+            debug!("Found window with partial name match: '{}'", name);
+        }
+        None => {
+            debug!("No window found with partial name: '{}'", name_part);
+        }
+    }
+    
     data.found_name
 }
 
 // Activate window by name
 fn activate_window_by_name(window_name: &str) -> bool {
+    debug!("Activate window by name: '{}'", window_name);
+
     // Convert to wide string for Windows API
     let window_name_wide: Vec<u16> = OsStr::new(window_name)
         .encode_wide()
@@ -137,6 +156,7 @@ fn activate_window_by_name(window_name: &str) -> bool {
     unsafe {
         let hwnd = FindWindowW(std::ptr::null(), window_name_wide.as_ptr());
         if hwnd != std::ptr::null_mut() {
+            trace!("Found window handle for: '{}'", window_name);
             // First, check if already in foreground
             let foreground_hwnd = GetForegroundWindow();
             if foreground_hwnd == hwnd {
@@ -194,33 +214,49 @@ fn activate_window_by_name(window_name: &str) -> bool {
             // Wait to confirm focus
             thread::sleep(Duration::from_millis(100));
             
-            return true;
+            if GetForegroundWindow() == hwnd {
+                info!("Successfully brought window to foreground: '{}'", window_name);
+                return true;
+            } else {
+                warn!("Window activation may have failed for: '{}'", window_name);
+                return true; // Still return true as activation was attempted
+            }
         }
     }
     
+    error!("Window not found for activation: '{}'", window_name);
     false // Window not found
 }
 
 /// Launch or activate an application based on its path and XPath
 /// Returns true if successful, false otherwise
 pub fn launch_or_activate_application(app_path: &str, xpath: &str) -> bool {
+    info!("Attempting to launch or activate application: {}", app_path);
+    debug!("Using xpath: {}", xpath);
+
     // Extract application name from path
     let app_name = match std::path::Path::new(app_path).file_name() {
         Some(name) => name.to_string_lossy().to_string(),
         None => {
+            error!("Invalid application path: {}", app_path);
             return false;
         }
     };
     
+    debug!("Application name extracted: {}", app_name);
+
     // Extract the base name without extension
     let app_name_without_ext = if let Some(name) = app_name.split('.').next() {
         name.to_string()
     } else {
         app_name.clone()
     };
+    debug!("Base name without extension: {}", app_name_without_ext);
     
     // First, try window names from XPath
     let xpath_window_names = extract_window_names_from_xpath(xpath);
+    debug!("Extracted {} window names from XPath: {:?}", 
+           xpath_window_names.len(), xpath_window_names);
     
     // Build a list of potential window names to check
     let mut potential_names = xpath_window_names.clone();
@@ -232,50 +268,89 @@ pub fn launch_or_activate_application(app_path: &str, xpath: &str) -> bool {
     potential_names.push(app_name_without_ext.to_uppercase());
     potential_names.push(app_name_without_ext.to_lowercase());
     
+    debug!("Built {} potential window names to check", potential_names.len());
+    trace!("Potential names: {:?}", potential_names);
+    
     // Get all windows on the system - using revised code
     let all_windows = scan_for_all_windows();
+    info!("Found {} windows currently open on the system", all_windows.len());
+    trace!("All windows: {:?}", all_windows);
     
     // Try exact matches first
+    debug!("Attempting exact window title matches");
     for window_info in &all_windows {
         let window_title = &window_info.0;
         
         for potential_name in &potential_names {
             if window_title == potential_name {
-                return activate_window_by_name(window_title);
+                info!("Found exact match for window: '{}'", window_title);
+                let result = activate_window_by_name(window_title);
+                if result {
+                    info!("Successfully activated existing window: '{}'", window_title);
+                } else {
+                    error!("Failed to activate window: '{}'", window_title);
+                }
+                return result;
             }
         }
     }
+    debug!("No exact window title matches found");
     
     // Then try partial/contained matches
+    debug!("Attempting partial/contained window title matches");
     for window_info in &all_windows {
         let window_title = &window_info.0;
         
         for potential_name in &potential_names {
             // Skip very short names to avoid false matches
             if potential_name.len() <= 3 {
+                trace!("Skipping short potential name: '{}'", potential_name);
                 continue;
             }
             
             if window_title.to_lowercase().contains(&potential_name.to_lowercase()) {
-                return activate_window_by_name(window_title);
+                info!("Found partial match: '{}' contains '{}'", window_title, potential_name);
+                let result = activate_window_by_name(window_title);
+                if result {
+                    info!("Successfully activated existing window: '{}'", window_title);
+                } else {
+                    error!("Failed to activate window: '{}'", window_title);
+                }
+                return result;
             }
         }
     }
-    
+    debug!("No partial window title matches found");
+
     // Try with partial name matching as a fallback
+    debug!("Attempting fallback partial name matching");
     for name in &potential_names {
         if name.len() > 3 {
+            trace!("Searching for partial name: '{}'", name);
             if let Some(found_window) = find_window_with_partial_name(name) {
-                return activate_window_by_name(&found_window);
+                info!("Found window via partial name search: '{}'", found_window);
+                let result = activate_window_by_name(&found_window);
+                if result {
+                    info!("Successfully activated existing window: '{}'", found_window);
+                } else {
+                    error!("Failed to activate window: '{}'", found_window);
+                }
+                return result;
             }
         }
     }
+    debug!("No windows found via partial name matching");
     
     // If not found, launch the application
+    info!("Window not found, launching new application instance: {}", app_path);
     match Command::new(app_path).spawn() {
-        Ok(_child) => {
+        Ok(child) => {
+            info!("Successfully spawned process with PID: {:?}", child.id());
+            
             // Wait for ANY window to appear
             let max_attempts = 20;
+            debug!("Waiting for application window to appear (max {} attempts)", max_attempts);
+            
             for attempt in 1..=max_attempts {
                 // Progressive wait times
                 let wait_ms = if attempt < 5 {
@@ -286,10 +361,12 @@ pub fn launch_or_activate_application(app_path: &str, xpath: &str) -> bool {
                     1000
                 };
                 
+                trace!("Attempt {}/{}: waiting {}ms", attempt, max_attempts, wait_ms);
                 thread::sleep(Duration::from_millis(wait_ms));
                 
                 // Get updated window list
                 let new_windows = scan_for_all_windows();
+                trace!("Found {} windows after waiting", new_windows.len());
                 
                 // Look for windows that match our criteria
                 for window_info in &new_windows {
@@ -298,26 +375,60 @@ pub fn launch_or_activate_application(app_path: &str, xpath: &str) -> bool {
                     // First check XPath window names
                     for xpath_name in &xpath_window_names {
                         if window_title.contains(xpath_name) {
-                            return activate_window_by_name(window_title);
+                            info!("Found new window matching XPath name: '{}' (attempt {})", 
+                                 window_title, attempt);
+                            let result = activate_window_by_name(window_title);
+                            if result {
+                                info!("Successfully activated new window: '{}'", window_title);
+                            } else {
+                                error!("Failed to activate new window: '{}'", window_title);
+                            }
+                            return result;
                         }
                     }
                     
                     // Then check app name
                     if window_title.to_lowercase().contains(&app_name_without_ext.to_lowercase()) {
-                        return activate_window_by_name(window_title);
+                        info!("Found new window matching app name: '{}' (attempt {})", 
+                             window_title, attempt);
+                        let result = activate_window_by_name(window_title);
+                        if result {
+                            info!("Successfully activated new window: '{}'", window_title);
+                        } else {
+                            error!("Failed to activate new window: '{}'", window_title);
+                        }
+                        return result;
                     }
                 }
                 
                 // Try with partial name matching again
                 if let Some(found_window) = find_window_with_partial_name(&app_name_without_ext) {
-                    return activate_window_by_name(&found_window);
+                    info!("Found new window via partial name: '{}' (attempt {})", 
+                         found_window, attempt);
+                    let result = activate_window_by_name(&found_window);
+                    if result {
+                        info!("Successfully activated new window: '{}'", found_window);
+                    } else {
+                        error!("Failed to activate new window: '{}'", found_window);
+                    }
+                    return result;
+                }
+                
+                if attempt == 5 {
+                    debug!("Window not found after 5 attempts, increasing wait time");
+                } else if attempt == 10 {
+                    warn!("Window not found after 10 attempts, still trying...");
+                } else if attempt == 15 {
+                    warn!("Window not found after 15 attempts, application may be slow to start");
                 }
             }
             
             // If we still can't find it, assume success anyway
+            warn!("Could not find window after {} attempts, assuming success", max_attempts);
             true
         },
-        Err(_) => {
+        Err(e) => {
+            error!("Failed to spawn application process: {} - Error: {:?}", app_path, e);
             false
         }
     }

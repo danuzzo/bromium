@@ -1,9 +1,9 @@
-use crate::printfmt;
 use crate::windriver::Element;
 use crate::xpath::get_path_to_element;
 use crate::xpath::XpathElement;
 use uitree::UITree;
 use uiautomation::{controls::ControlType, UIAutomation, UIElement};
+use log::{debug, error, info, trace, warn};
 
 
 trait ConvertToControlType {
@@ -67,6 +67,7 @@ enum FindResult {
 }
 
 fn get_ui_automation_instance() -> Option<UIAutomation> {
+    debug!("Creating UIAutomation instance");
 
     let uia: UIAutomation;
     let uia_res = UIAutomation::new();
@@ -74,18 +75,18 @@ fn get_ui_automation_instance() -> Option<UIAutomation> {
     match uia_res {
         Ok(uia_ok) => {
             uia = uia_ok;
-            // printfmt!("UIAutomation instance created successfully.");
+            info!("UIAutomation instance created successfully");
         },
         Err(e) => {
-            printfmt!("Failed to create UIAutomation instance, trying direct method: {:?}", e);
+            warn!("Failed to create UIAutomation instance, trying direct method: {:?}", e);
             let uia_direct_res = UIAutomation::new_direct();
             match uia_direct_res {
                 Ok(uia_direct_ok) => {
                     uia = uia_direct_ok;
-                    // printfmt!("UIAutomation instance created successfully using direct method.");
+                    info!("UIAutomation instance created successfully using direct method.");
                 },
                 Err(e_direct) => {
-                    printfmt!("Failed to create UIAutomation instance using direct method: {:?}", e_direct);
+                    error!("Failed to create UIAutomation instance using direct method: {:?}", e_direct);
                     return None; // Return None if we cannot create a UIAutomation instance
                 }
             }
@@ -98,6 +99,7 @@ fn get_ui_automation_instance() -> Option<UIAutomation> {
 
 
 pub fn get_element_by_xpath(xpath: String, ui_tree: &UITree) -> Option<Element> {
+    debug!("UIAutomation::get_element_by_xpath called, xpath: {}", xpath);
 // Returns the Windows UI Automation API UI element of the window at the given xpath. As an xpath
 // is a string representation of the UI element, it is not a valid xpath in the XML sense.
 // The search is following a three step approach:
@@ -117,10 +119,10 @@ pub fn get_element_by_xpath(xpath: String, ui_tree: &UITree) -> Option<Element> 
     let mut search_depth = 2; 
     
     if let Ok(path_returned) = get_path_to_element(&mut input) {
-        // printfmt!("Path to element: {:?}", path_to_element);
+        trace!("Path to element parsed successfully: {:?}", path_returned);
         path_to_element = path_returned;
     } else {
-        printfmt!("Failed to get path to element.");
+        error!("Failed to get path to element.");
         return None;
     }
 
@@ -128,35 +130,35 @@ pub fn get_element_by_xpath(xpath: String, ui_tree: &UITree) -> Option<Element> 
 
     let mut root = uia.get_root_element().unwrap();
     'outer: for element in &path_to_element {
-        printfmt!("Looking for Element: {:?}", element);
+        trace!("Looking for Element: {:?}", element);
         let found = get_next_element(root.clone(), &element.clone(), search_depth);
         match found {
             FindResult::FoundSingle(found_element) => {
-                printfmt!("Element found: {:?}", found_element);
+                trace!("Element found: {:?}", found_element);
                 root = found_element;
             },
             FindResult::FoundMultiple(found_elements) => {
-                printfmt!("Found multiple elements: {:?}", found_elements);
+                trace!("Found multiple elements: {:?}", found_elements);
                 // trying the lucky punch and just search the target element (i.e. the last one in the xpath)
                 search_depth = 99;
                 let final_element = path_to_element.last().unwrap();
-                printfmt!("Looking for Element: {:?}", final_element);
+                trace!("Looking for Element: {:?}", final_element);
                 let found = get_next_element(root.clone(), &final_element.clone(), search_depth);
                 match found {
                     FindResult::FoundSingle(found_element) => {
-                        printfmt!("Element found: {:?}", found_element);
+                        trace!("Element found: {:?}", found_element);
                         root = found_element;
                         break; // Exit the loop after finding the target element
                     },
                     FindResult::FoundMultiple(found_elements) => {
-                        printfmt!("Found again multiple elements: {:?}", found_elements);
+                        trace!("Found again multiple elements: {:?}", found_elements);
                         // loop through the found elements and construct a new xpath for each element
                         // and check if the xpath matches the target element
                         for found_element in found_elements {
                             if let Ok(optional_point) = found_element.get_clickable_point() {
                                 let clickable_point = optional_point.unwrap_or_default();
                                 let point: windows::Win32::Foundation::POINT = clickable_point.into();
-                                printfmt!("Found element at: {:?}", point);
+                                trace!("Found element at: {:?}", point);
 
                                 //TODO: replace this with a function that generates the xpath from the UIElementInTree
                                 // based on the point coordinates and the UITree structure pased to the function
@@ -167,31 +169,31 @@ pub fn get_element_by_xpath(xpath: String, ui_tree: &UITree) -> Option<Element> 
                                 }
                                 
                                 if xpath_candidate == xpath {
-                                    printfmt!("Found target element: {:?}", found_element);
+                                    trace!("Found target element: {:?}", found_element);
                                     root = found_element;
                                     break 'outer; // Exit the inner and outer loop after finding the target element
                                 } else {
-                                    printfmt!("Found element but not matching xpath: {:?}", xpath_candidate);
+                                    trace!("Found element but not matching xpath: {:?}", xpath_candidate);
                                     //skip this element
                                 }
                             } else {
-                                printfmt!("Failed to get clickable point for element: {:?}", found_element);
+                                trace!("Failed to get clickable point for element: {:?}", found_element);
                                 //skip this element
                             }
                         }
                         
-                        printfmt!("No matching element found for xpath: {:?}", xpath);
+                        trace!("No matching element found for xpath: {:?}", xpath);
                         return None; // Return None if we find multiple elements again
                         
                     },
                     FindResult::NotFound => {
-                        printfmt!("Element not found: {:?}", final_element);
+                        info!("Element not found: {:?}", final_element);
                         return None;
                     }
                 } 
             },
             FindResult::NotFound => {
-                printfmt!("Element not found: {:?}", element);
+                info!("Element not found: {:?}", element);
                 return None;
             }
         }
@@ -213,11 +215,12 @@ pub fn get_element_by_xpath(xpath: String, ui_tree: &UITree) -> Option<Element> 
     );
     
     let element = Element::new(name, xpath, handle, runtimeid, (left, top, right, bottom));
-    printfmt!("Final Element: {:?}", element);
+    info!("Final Element: {:?}", element);
     Some(element)
 }
 
 fn get_next_element(root: UIElement, element: &XpathElement<'_>, depth: u32 ) -> FindResult {
+    debug!("UIAutomation::get_next_element called.");
     // let uia = UIAutomation::new().unwrap();
     let uia = get_ui_automation_instance().unwrap();
     let matcher = uia.create_matcher().from(root).depth(depth);
@@ -239,18 +242,18 @@ fn get_next_element(root: UIElement, element: &XpathElement<'_>, depth: u32 ) ->
     //     }
     // ));
 
-    // printfmt!("Matcher: {:?}", matcher);
+    // trace!("Matcher: {:?}", matcher);
     
     if let Ok(found_elements) = matcher.find_all() { 
         if found_elements.len() == 1 {
-            // printfmt!("Found exactly one element: {:?}", found_elements);
+            trace!("Found exactly one element: {:?}", found_elements);
             return FindResult::FoundSingle(found_elements[0].clone());
         } else {
-            // printfmt!("Found multiple elements: {:?}", found_elements);
+            trace!("Found multiple elements: {:?}", found_elements);
             return FindResult::FoundMultiple(found_elements);
         }
     } else {
-        // printfmt!("No elements found.");
+        info!("No elements found.");
         return FindResult::NotFound;
     }
     
@@ -258,6 +261,7 @@ fn get_next_element(root: UIElement, element: &XpathElement<'_>, depth: u32 ) ->
 
 
 pub fn get_ui_element_by_xpath(xpath: String, ui_tree: &UITree) -> Option<UIElement> {
+    debug!("UIAutomation::get_ui_element_by_xpath called, xpath: {}", xpath);
 
 
     let ui_elem = get_element_by_xpath(xpath.clone(), ui_tree);
@@ -288,7 +292,7 @@ impl uiautomation::filters::MatcherFilter for RuntimeIdFilter {
 
 
 pub fn get_ui_element_by_runtimeid(runtime_id: Vec<i32>) -> Option<UIElement> {
-    printfmt!("Searching for element with runtime id: {:?}", runtime_id);
+    debug!("Searching for element with runtime id: {:?}", runtime_id);
     // let automation = UIAutomation::new().unwrap();
     let uia = get_ui_automation_instance().unwrap();
     let matcher = uia.create_matcher().timeout(0).filter(Box::new(RuntimeIdFilter(runtime_id))).depth(99);
@@ -296,11 +300,11 @@ pub fn get_ui_element_by_runtimeid(runtime_id: Vec<i32>) -> Option<UIElement> {
     
     match element {
         Ok(e) => {
-            printfmt!("Element found by runtime id: {:?}", e);
+            info!("Element found by runtime id: {:?}", e);
             Some(e)
         },
         Err(e) => {
-            printfmt!("Error finding element by runtime id: {:?}", e);
+            error!("Error finding element by runtime id: {:?}", e);
             None
         }
     }
@@ -310,11 +314,12 @@ pub fn get_ui_element_by_runtimeid(runtime_id: Vec<i32>) -> Option<UIElement> {
 
 mod tests {
     // use super::get_ui_automation_instance;
-    
+     use log::debug;
 
     #[test]
     fn test_ui_automation_creation_sta() {
- 
+        debug!("UIAutomation::test_ui_automation_creation_sta called.");
+
         use windows::Win32::System::Com::{CoInitializeEx, COINIT_APARTMENTTHREADED};
         
         // Initialize COM library for the current thread with STA (Single Threaded Apartment) model
@@ -332,6 +337,7 @@ mod tests {
 
     #[test]
     fn test_ui_automation_creation_mta() {
+        debug!("UIAutomation::test_ui_automation_creation_mta called.");
 
         // Create a UIAutomation instance
         let uia = super::get_ui_automation_instance();
