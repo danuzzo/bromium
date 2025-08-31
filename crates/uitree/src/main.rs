@@ -87,7 +87,7 @@ fn main() {
     printfmt!("Spawning separate thread to get ui tree in XML format");
     let start_xml = Instant::now();
     thread::spawn(move || {
-        get_all_elements_xml(tx_xml, None);
+        get_all_elements_xml(tx_xml, None, None);
     });
     printfmt!("Spawned separate thread to get ui tree in XML format");
     let ui_tree_xml: UITreeXML = rx_xml.recv().unwrap();

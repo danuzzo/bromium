@@ -3,13 +3,43 @@ use xee_xpath::context::StaticContextBuilder;
 use xee_xpath::Itemable;
 use xee_xpath::Query;
 
+#[derive(Debug, Clone)]
+pub struct XpathQueryResult {
+    item_xml: String,
+    item_value: String,
+}
+
+impl XpathQueryResult {
+    fn new(item_xml: String, item_value: String) -> Self {
+        XpathQueryResult { item_xml, item_value }
+    }
+    
+    pub fn get_item_xml(&self) -> &str {
+        &self.item_xml
+    }
+    
+    pub fn get_item_value(&self) -> &str {
+        &self.item_value
+    }
+}
+
+impl Default for XpathQueryResult {
+    fn default() -> Self {
+        XpathQueryResult {
+            item_xml: "".to_string(),
+            item_value: "".to_string(),
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
 pub struct XpathResult {
     result_count: usize,
-    result: Vec<String>,
+    result: Vec<XpathQueryResult>,
 }
 
 impl XpathResult {
-    fn new(result_count: usize, result: Vec<String>) -> Self {
+    fn new(result_count: usize, result: Vec<XpathQueryResult>) -> Self {
         XpathResult { result_count, result }
     }
     
@@ -17,7 +47,7 @@ impl XpathResult {
         self.result_count
     }
     
-    pub fn get_result_items(&self) -> Vec<String> {
+    pub fn get_result_items(&self) -> Vec<XpathQueryResult> {
         self.result.clone()
     }
 }
@@ -49,7 +79,7 @@ fn execute_query(
     doc: Option<xee_xpath::DocumentHandle>,
 ) -> Result<XpathResult, anyhow::Error> {
 
-    let no_result = XpathResult::new(0, vec!["".to_string()]);
+    let no_result = XpathResult::new(0, vec![XpathQueryResult::default()]);
 
     let sequence_query = queries.sequence(xpath);
     let sequence_query = match sequence_query {
@@ -74,15 +104,14 @@ fn execute_query(
         }
     };
 
-    println!(
-        "No of items found: {}\n{}", sequence.len(),
-        sequence.display_representation(documents.xot(), &context)
-    );
-
-    let mut results: Vec<String> = Vec::new();
+    let mut results: Vec<XpathQueryResult> = Vec::new();
     for idx in 0..sequence.len() {
-        results.push(sequence.get(idx).unwrap().display_representation(documents.xot(), &context).unwrap());
-        println!("{}", sequence.get(idx).unwrap().display_representation(documents.xot(), &context).unwrap());
+        let itm = sequence.get(idx).unwrap();
+        let qry_result = XpathQueryResult::new(
+         itm.display_representation(documents.xot(), &context).unwrap_or("error getting xpath".to_string()),
+        itm.string_value(documents.xot()).unwrap_or("error getting string value".to_string())
+    );
+        results.push(qry_result);
     }
 
     // construct the result

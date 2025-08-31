@@ -15,7 +15,7 @@ def test_app_launch():
     # xpath = r'/Pane[@ClassName="#32769"][@Name="Desktop 1"]/Window[@ClassName="ApplicationFrameWindow"][@Name="Calculator"]/Window[@ClassName="Windows.UI.Core.CoreWindow"][@Name="Calculator"]/Custom[@AutomationId="NavView"]/Group[@ClassName="LandmarkTarget"]/Group[@Name="Number pad"][@AutomationId="NumberPad"]/Button[@Name="Nine"][@AutomationId="num9Button"]'
 
     # Path to MS Teams
-    app_path = r"C:\Program Files\WindowsApps\MSTeams_25094.310.3616.953_x64__8wekyb3d8bbwe\ms-teams.exe"
+    app_path = r"C:\Program Files\WindowsApps\MSTeams_25198.1112.3855.2900_x64__8wekyb3d8bbwe\ms-teams.exe"
     # XPath for MS Teams
     # This is a sample XPath for the Teams window and the "Besprechung" button
     xpath = r'/Pane[@ClassName=\"#32769\"][@Name=\"Desktop 1\"]/Window[@ClassName=\"TeamsWebView\"][@Name=\"Besprechungen | Microsoft Teams\"]/Pane[@ClassName=\"Chrome_WidgetWin_0\"]/Pane[@ClassName=\"Chrome_WidgetWin_1\"][@Name=\"Besprechungen | Microsoft Teams\"]/Pane[@ClassName=\"BrowserRootView\"][@Name=\"Besprechungen | Microsoft Teams – Webinhalt – Profilo 3\"]/Pane[@ClassName=\"NonClientView\"]/Pane[@ClassName=\"EmbeddedBrowserFrameView\"]/Pane[@ClassName=\"BrowserView\"]/Pane[@ClassName=\"SidebarContentsSplitView\"]/Pane[@ClassName=\"SidebarContentsSplitView\"]/Pane[@ClassName=\"View\"]/Document[@Name=\"Besprechungen | Microsoft Teams\"][@AutomationId=\"RootWebArea\"]/Group/Group[@AutomationId=\"app\"]/Group/Group[@Name=\"Apps\"]/Group[@Name=\"Besprechungen\"]/Button[@Name=\"Besprechungen\"][@AutomationId=\"40472f6e-248f-4599-842c-ff3ed8f0ae34\"]'

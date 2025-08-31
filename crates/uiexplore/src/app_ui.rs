@@ -14,8 +14,9 @@ use windows::Win32::Foundation::{POINT, RECT};
 #[allow(unused)]
 use crate::{rectangle, AppContext}; //winevent
 use uitree::{get_all_elements_xml, SaveUIElementXML, UIElementInTreeXML, UITreeXML };
+use winevent_monitor::{WinEventMonitor};
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 struct TreeState {
     active_element: Option<SaveUIElementXML>,
     prev_element: Option<SaveUIElementXML>,
@@ -43,7 +44,7 @@ impl TreeState {
         // update the state to reflect the change
         if let Some(current_element) = &self.active_element {
             // only update the state if there is a change in the active element
-            if new_active_element.get_element().get_runtime_id().unwrap() != current_element.get_element().get_runtime_id().unwrap() {
+            if new_active_element.get_element().get_runtime_id() != current_element.get_element().get_runtime_id() {
                 self.prev_element = Some(current_element.clone());
                 self.clear_frame = true;    
                 self.active_element = Some(new_active_element);
@@ -189,62 +190,83 @@ impl DeduplicatedHistory {
 
 }
 
+#[derive(Debug)]
+// #[allow(dead_code)]
+struct LastRefresh {
+    time: std::time::Instant,
+}
+#[derive(Debug)]
+enum AppMode {
+    Normal(LastRefresh),
+    NeedsTreeRefresh,
+    IsRefreshingTree(Receiver<UITreeXML>),
+}
 
 
 // #[allow(dead_code)]
 pub struct UIExplorer {
+    app_name: String,
     app_context: AppContext,
     recording: bool,
     show_history: bool,
     highlighting: bool,
+    auto_refresh: bool,
     ui_tree: UITreeXML,
     tree_state: Option<TreeState>,
     history: DeduplicatedHistory,
-    status_msg: Option<AppStatusMsg>
+    status_msg: Option<AppStatusMsg>,
+    app_mode: AppMode,
+    winevent_monitor: WinEventMonitor,
 }
 
 impl UIExplorer {
     #[allow(dead_code)]
-    pub fn new() -> Self {
+    pub fn new(caption: String) -> Self {
 
         // get the ui tree in a separate thread
+        let app_name = caption.clone();
         let (tx, rx): (Sender<_>, Receiver<UITreeXML>) = channel();
         thread::spawn(|| {
-            get_all_elements_xml(tx, None);
+            get_all_elements_xml(tx, None, Some(app_name));
         });
 
         let ui_tree = rx.recv().unwrap();
         let app_context = AppContext::new_from_screen(0.4, 0.8);
 
-        // TODO: Add winevent hook and ui automation instance
-
         Self {
+            app_name: caption,
             app_context,
             recording: false,
             show_history: false,
             highlighting: false,
+            auto_refresh: false,
             ui_tree,
             tree_state: None,
             history: DeduplicatedHistory::default(),
             status_msg: None,
+            app_mode: AppMode::Normal(LastRefresh { time: std::time::Instant::now() }),
+            winevent_monitor: WinEventMonitor::new(),
         }
 
 
     }
-
-    pub fn new_with_state(app_context: AppContext, ui_tree: UITreeXML) -> Self {
-
-        // TODO: Add winevent hook and ui automation instance
+    
+    // #[allow(dead_code)]
+    pub fn new_with_state(caption: String, app_context: AppContext, ui_tree: UITreeXML) -> Self {
 
         Self {
+            app_name: caption,
             app_context,
             recording: false,
             show_history: false,
             highlighting: false,
+            auto_refresh: false,
             ui_tree,
             tree_state: None,
             history: DeduplicatedHistory::default(),
             status_msg: None,
+            app_mode: AppMode::Normal(LastRefresh { time: std::time::Instant::now() }),
+            winevent_monitor: WinEventMonitor::new(),
         }
     }
 
@@ -269,7 +291,7 @@ impl UIExplorer {
             
             if tree.children(child_index).is_empty() {
                 // Node has no children, so just show a label
-                let lbl = egui::Label::new(format!("  {}", name));
+                let lbl = egui::Label::new(format!("  {}", name)).truncate();
                 let entry: Response;
                 // let entry = ui.label(format!("  {}", name)).on_hover_cursor(egui::CursorIcon::Default);
                 if is_active_element{
@@ -295,18 +317,27 @@ impl UIExplorer {
             }
             else {
                 // Render children under collapsing header
-                let header: egui::CollapsingHeader;                
+                let header: egui::CollapsingHeader;
+                
+                // truncate long names to avoid UI issues
+                let limit: usize = 100;
+                let mut short_name: String = name.to_string();
+                let name_len = name.chars().count();
+                if name_len > limit {
+                    short_name = name.chars().take(limit).collect();
+                    short_name.push_str("...");
+                }
 
                 // println!("Header: {:?} - checking current element: {:?} against path {:?}", name, child_index, state.path_to_active_ui_element);
                 if !is_in_path_to_active_element(child_index, &state.path_to_active_ui_element) {
                     // header is not on path, render a standard CollapsingHeader
                     // unless it's the root node (index = 1), in which case we want to show it open by default
                     if child_index == 1 {
-                        header = egui::CollapsingHeader::new(name)
+                        header = egui::CollapsingHeader::new(short_name)
                             .id_salt(format!("ch_node{}", child_index))
                             .open(Some(true));
                     } else {
-                        header = egui::CollapsingHeader::new(name)
+                        header = egui::CollapsingHeader::new(short_name)
                         .open(Some(false))
                         .id_salt(format!("ch_node{}", child_index))
                         }
@@ -315,12 +346,12 @@ impl UIExplorer {
                     // println!("Element: {:?} ; {:?} is in path ; {:?}", name, child_index, state.path_to_active_ui_element);
                     if is_active_element {
                         // show background to visually highlight the active element
-                        header = egui::CollapsingHeader::new(name)
+                        header = egui::CollapsingHeader::new(short_name)
                         .id_salt(format!("ch_node{}", child_index))
                         .open(Some(true))
                         .show_background(true);
                     } else {
-                        header = egui::CollapsingHeader::new(name)
+                        header = egui::CollapsingHeader::new(short_name)
                         .id_salt(format!("ch_node{}", child_index))
                         .open(Some(true));
 
@@ -332,7 +363,10 @@ impl UIExplorer {
                         // Recursively render children
                         Self::render_ui_tree_recursive(ui, tree, child_index, state);
                     });    
-                    
+                
+                if name_len > limit {
+                    header_resp.header_response.clone().on_hover_text(name);
+                }
                 if header_resp.header_response.clicked() {
                     state.update_state(ui_element.clone(), child_index);
                 }
@@ -341,9 +375,12 @@ impl UIExplorer {
     }    
 
     fn process_event(&mut self, event: &egui::Event, state: &mut TreeState) {
-
+        
         match event {
             egui::Event::MouseMoved { .. } => { 
+                // printfmt!("Mouse moved event received");
+                // printfmt!("Getting cursor position");
+
                 let cursor_position = unsafe {
                     let mut cursor_pos = POINT::default();
                     GetCursorPos(&mut cursor_pos).unwrap();
@@ -351,10 +388,25 @@ impl UIExplorer {
                     cursor_pos.y = (cursor_pos.y as f32 / self.app_context.screen_scale) as i32;
                     cursor_pos
                 };
-                                
+                // printfmt!("getting bouding rectangle for cursor position: ({}, {})", cursor_position.x, cursor_position.y);
+                // printfmt!("Searching {} elements in the UI tree", self.ui_tree.get_elements().len());
                 if let Some(ui_element_props) = rectangle::get_point_bounding_rect(&cursor_position, self.ui_tree.get_elements()) {
+                    // printfmt!("Updating state with element found at cursor position: {}", ui_element_props.get_element_props().get_element().get_name());
                     state.update_state(ui_element_props.get_element_props().clone(), ui_element_props.get_tree_index());
                 } 
+            }
+            egui::Event::Key { key, pressed, ..} => { // physical_key, repeat, modifiers 
+                // printfmt!("Key event received: {:?}, pressed: {}", key, pressed);
+                if key == &egui::Key::Escape && !*pressed  {                 
+                    // check if tracking is enabled, if yes, desable tracking
+                    // if not, ignore the escape key
+                    if self.recording == true {
+                        self.recording = false;
+                        self.set_status("Tracking disabled".to_string(), Duration::seconds(2));
+                    } else {
+                        self.set_status("No tracking active, ignoring Escape key".to_string(), Duration::seconds(2));
+                    }
+                }
             }
             _ => (),
         }
@@ -402,6 +454,49 @@ impl eframe::App for UIExplorer {
             }
         }
 
+        // manage the AppMode / Tree refresh lifecycle
+        match &self.app_mode {
+            AppMode::Normal(last_refesh) => {
+                // check for WinEvents indicating a change in the UI tree
+                // to avoid excessive refresh, only check every 2 seconds and
+                // only if not currently recording (tracking) the cursor
+                if !self.recording && self.auto_refresh && last_refesh.time.elapsed().as_secs() > 2 {
+                    let winevents = self.winevent_monitor.check_for_events();
+                    let relevant_events = winevents.iter().filter(|e| e.get_ui_element_name() != "UI Explore").count();
+                    // let ui_elem_events = winevents.iter().filter(|e| e.get_ui_element_name() == "UI Explore").count();
+                    if winevents.len() > 0 {
+                        // printfmt!("Checked for WinEvents, found {} relevant and {} UI Explore events", relevant_events, ui_elem_events);
+                        if relevant_events > 0 {
+                            // printfmt!("Triggering UI tree refresh");
+                            self.app_mode = AppMode::NeedsTreeRefresh;
+                            self.set_status("UI Tree change detected, refreshing...".to_string(), Duration::seconds(5));
+                        }
+                    }
+                }
+            }
+            AppMode::NeedsTreeRefresh => {
+                let app_name = self.app_name.clone();
+                let (tx, rx): (Sender<_>, Receiver<UITreeXML>) = channel();
+                thread::spawn(|| {
+                    get_all_elements_xml(tx, None, Some(app_name));
+                });
+                self.app_mode = AppMode::IsRefreshingTree(rx);
+                state.active_element = None;
+            }
+            AppMode::IsRefreshingTree(rx) => {
+                if let Ok(new_ui_tree) = rx.try_recv() {
+                    self.ui_tree = new_ui_tree;
+                    state = TreeState::new(); // reset the tree state
+                    self.tree_state = Some(state);
+                    self.app_mode = AppMode::Normal(LastRefresh { time: std::time::Instant::now() });
+                    self.set_status("UI Tree refreshed".to_string(), Duration::seconds(2));
+                    // return to avoid conflicts with the UI rendering below in particular the state variable
+                    return;
+                }                
+            }
+        }
+
+
         // status bar
         egui::TopBottomPanel::bottom("bottom_panel").resizable(false).show(ctx, |ui| {
 
@@ -413,7 +508,18 @@ impl eframe::App for UIExplorer {
                 } else {
                     ui.label("Ready");
                 }
-                ui.label(format!("Clear Frame: {}", state.clear_frame));
+                ui.add_space(2.0);
+                ui.label(" | ");
+                ui.add_space(2.0);
+                ui.vertical(|ui| {
+                    ui.add_space(2.0);
+                    ui.label(format!("Screen: {}x{} @ {:.1}x", self.app_context.screen_width, self.app_context.screen_height, self.app_context.screen_scale));
+                    ui.label(format!("Elemtns detected: {}", self.ui_tree.get_elements().len()));                  
+                }
+                );
+                // ui.label(format!("Clear Frame: {}", state.clear_frame));
+                // ui.add_space(2.0);
+                // ui.label(format!("State: {:?}", state));
             });
         
             ui.add_space(2.0);
@@ -421,19 +527,28 @@ impl eframe::App for UIExplorer {
         });
         
 
-        // UI tree 
+        // UI tree (or placeholder while updating)
         egui::SidePanel::left("left_panel")
-        .min_width(800.0)
+        .min_width(600.0)
         .max_width(1400.0)                
         .show(ctx, |ui| { // .min_width(300.0).max_width(600.0)
-
-            egui::ScrollArea::vertical()
-            .auto_shrink(false)
-            .show(ui, |ui| {
-                // printfmt!("running 'render_ui_tree' function on UIExplorer");
-                self.render_ui_tree(ui, &mut state);
-
-            });
+            match self.app_mode {
+                AppMode::Normal(_) => {
+                    egui::ScrollArea::vertical()
+                    .auto_shrink(false)
+                    .show(ui, |ui| {
+                        // printfmt!("running 'render_ui_tree' function on UIExplorer");
+                        self.render_ui_tree(ui, &mut state);
+        
+                    });
+        
+                },
+                _ => {
+                    ui.centered_and_justified(|ui| {
+                        ui.label("Refreshing UI Tree...");
+                    });
+                },
+            }
 
         });
 
@@ -442,6 +557,7 @@ impl eframe::App for UIExplorer {
 
             ui.add_space(2.0);
 
+            // process egui input events
             ui.input(|i| {
                 
                 for event in &i.raw.events {
@@ -453,6 +569,18 @@ impl eframe::App for UIExplorer {
                             | egui::Event::Touch { .. }
                     )
                 {
+
+                    // update the last refresh time to avoid excessive refreshes
+                    // when auto_refresh is set and mouse is moving
+                    if self.auto_refresh {
+                        match self.app_mode {
+                            AppMode::Normal(_) => {
+                                // only process mouse move events in normal mode
+                                self.app_mode = AppMode::Normal(LastRefresh { time: std::time::Instant::now() });
+                            },
+                            _ => (), // only process mouse move events in normal mode
+                        }
+                    }
                     continue;
                 }
                     
@@ -471,12 +599,32 @@ impl eframe::App for UIExplorer {
             ui.horizontal(|ui| {
                 
                 let prev_highlight = self.highlighting;
-                ui.button("🔄").on_hover_text("Refresh");
+                if ui.checkbox(&mut self.auto_refresh, "Auto Refresh").on_hover_text("When enabled, the UI tree is automatically refreshed when changes are detected in the Windows UI Tree.").clicked() {
+                    if self.auto_refresh {
+                        match self.app_mode {
+                            AppMode::Normal(_) => {
+                                // only process mouse move events in normal mode
+                                self.app_mode = AppMode::Normal(LastRefresh { time: std::time::Instant::now() });
+                            },
+                            _ => (), // only process mouse move events in normal mode
+                        }
+                        self.set_status("Auto Refresh enabled".to_string(), Duration::seconds(2));
+                    } else {
+                        self.set_status("Auto Refresh disabled".to_string(), Duration::seconds(2));
+                    }
+                }
+                // only show the refresh button when auto refresh is disabled
+                if !self.auto_refresh {
+                    if ui.button("🔄").on_hover_text("Refresh").clicked() {
+                        self.app_mode = AppMode::NeedsTreeRefresh;
+                        self.set_status("Refreshing UI Tree...".to_string(), Duration::seconds(5));
+                    }    
+                }
                 ui.add_space(2.0);
                 ui.label(" | ");
                 ui.add_space(2.0);
                 ui.checkbox(&mut self.highlighting, "Show Highlight Rectangle");
-                ui.checkbox(&mut self.recording, "Track Cursor");
+                ui.checkbox(&mut self.recording, "Track Cursor").on_hover_text("When enabled, the element under the mouse cursor is automatically selected. Press Escape to disable tracking.");
                 if self.recording {
                     ui.checkbox(&mut self.show_history, "Show Event History");
                 }
@@ -517,10 +665,10 @@ impl eframe::App for UIExplorer {
                     
                     // Optionally render the frame around the active element on the screen
                     if self.highlighting {
-                        let left: f32 = active_element.get_element().get_bounding_rectangle().unwrap().get_left() as f32 * self.app_context.screen_scale;
-                        let top: f32 = active_element.get_element().get_bounding_rectangle().unwrap().get_top() as f32 * self.app_context.screen_scale;
-                        let right: f32 = active_element.get_element().get_bounding_rectangle().unwrap().get_right() as f32 * self.app_context.screen_scale;
-                        let bottom: f32 = active_element.get_element().get_bounding_rectangle().unwrap().get_bottom() as f32 * self.app_context.screen_scale;
+                        let left: f32 = active_element.get_element().get_bounding_rectangle().get_left() as f32 * self.app_context.screen_scale;
+                        let top: f32 = active_element.get_element().get_bounding_rectangle().get_top() as f32 * self.app_context.screen_scale;
+                        let right: f32 = active_element.get_element().get_bounding_rectangle().get_right() as f32 * self.app_context.screen_scale;
+                        let bottom: f32 = active_element.get_element().get_bounding_rectangle().get_bottom() as f32 * self.app_context.screen_scale;
 
                         let rect: RECT = RECT { 
                             left: left as i32, 
@@ -530,10 +678,10 @@ impl eframe::App for UIExplorer {
                         };
                         
                         if let Some(prev_element) = &state.prev_element {
-                            let prev_left: f32 = prev_element.get_element().get_bounding_rectangle().unwrap().get_left() as f32 * self.app_context.screen_scale;
-                            let prev_top: f32 = prev_element.get_element().get_bounding_rectangle().unwrap().get_top() as f32 * self.app_context.screen_scale;
-                            let prev_right: f32 = prev_element.get_element().get_bounding_rectangle().unwrap().get_right() as f32 * self.app_context.screen_scale;
-                            let prev_bottom: f32 = prev_element.get_element().get_bounding_rectangle().unwrap().get_bottom() as f32 * self.app_context.screen_scale;
+                            let prev_left: f32 = prev_element.get_element().get_bounding_rectangle().get_left() as f32 * self.app_context.screen_scale;
+                            let prev_top: f32 = prev_element.get_element().get_bounding_rectangle().get_top() as f32 * self.app_context.screen_scale;
+                            let prev_right: f32 = prev_element.get_element().get_bounding_rectangle().get_right() as f32 * self.app_context.screen_scale;
+                            let prev_bottom: f32 = prev_element.get_element().get_bounding_rectangle().get_bottom() as f32 * self.app_context.screen_scale;
 
                             let prev_rect: RECT = RECT {
                                 left: prev_left as i32, 
@@ -558,55 +706,51 @@ impl eframe::App for UIExplorer {
                     egui::Grid::new("some_unique_id").min_col_width(100.0).max_col_width(800.0)
                     .show(ui, |ui| {
                         ui.label("Name:");
-                        ui.label(active_element.get_element().get_name().unwrap_or_default());
+                        ui.label(active_element.get_element().get_name());
                         ui.end_row();
                     
                         ui.label("Control Type:");
-                        let mut control_type: String = "".to_string();
-                        if let Ok(ctrl_type) =  active_element.get_element().get_control_type() {
-                            control_type = ctrl_type.to_string();    
-                        }
-                        ui.label(control_type);
+                        ui.label(active_element.get_element().get_control_type().to_owned());
                         ui.end_row();
 
                         ui.label("Localized Control Type:");
-                        ui.label(active_element.get_element().get_localized_control_type().unwrap_or_default());
+                        ui.label(active_element.get_element().get_localized_control_type());
                         if ui.button("📋").clicked() {
-                            ui.ctx().copy_text(active_element.get_element().get_localized_control_type().unwrap_or_default());
+                            ui.ctx().copy_text(active_element.get_element().get_localized_control_type().to_owned());
                             self.set_status("Value copied to clipboard".to_string(), Duration::seconds(2));
                         }
                         ui.end_row();
 
                         ui.label("Framework ID:");
-                        ui.label(active_element.get_element().get_framework_id().unwrap_or_default());
+                        ui.label(active_element.get_element().get_framework_id());
                         ui.end_row();
 
                         ui.label("Class Name:");
-                        ui.label(active_element.get_element().get_classname().unwrap_or_default());
+                        ui.label(active_element.get_element().get_classname());
                         if ui.button("📋").clicked() {
-                            ui.ctx().copy_text(active_element.get_element().get_classname().unwrap_or_default());
+                            ui.ctx().copy_text(active_element.get_element().get_classname().to_owned());
                             self.set_status("Value copied to clipboard".to_string(), Duration::seconds(2));
                         }
                         ui.end_row();
 
                         ui.label("Runtime ID:");
-                        ui.label(active_element.get_element().get_runtime_id().unwrap_or(Vec::new()).iter().map(|x| x.to_string()).collect::<Vec<String>>().join("-"));
+                        ui.label(active_element.get_element().get_runtime_id().iter().map(|x| x.to_string()).collect::<Vec<String>>().join("-"));
                         ui.end_row();
 
                         ui.label("Surrounding Rectangle:");
-                        ui.label(format!("{:?}", active_element.get_element().get_bounding_rectangle().unwrap_or(uiautomation::types::Rect::new(0, 0, 0, 0))));
+                        ui.label(format!("{:?}", active_element.get_element().get_bounding_rectangle()));
                         ui.end_row();
                         
                         ui.label("level:");
-                        ui.label(active_element.level.to_string());
+                        ui.label(active_element.get_level().to_string());
                         ui.end_row();
                         
                         ui.label("z-order:");
-                        ui.label(active_element.z_order.to_string());
+                        ui.label(active_element.get_z_order().to_string());
                         ui.end_row();
 
                         ui.label("Automation ID:");
-                        ui.label(active_element.get_element().get_automation_id().unwrap_or_default()); 
+                        ui.label(active_element.get_element().get_automation_id().to_owned()); 
                         ui.end_row();
 
 
@@ -655,12 +799,8 @@ fn event_summary(event: &egui::Event, ui_elements: &Vec<UIElementInTreeXML>) -> 
             if let Some(ui_element_props) = rectangle::get_point_bounding_rect(&cursor_position, ui_elements) {
                 // format!("MouseMoved {{ x: {}, y: {} }} over {}", cursor_position.x, cursor_position.y, ui_element_props.name)
                 let ui_element_props = ui_element_props.get_element_props();
-                let mut control_type: String = "".to_string();
-                if let Ok(ctrl_type) =  ui_element_props.get_element().get_control_type() {
-                    control_type = ctrl_type.to_string();    
-                }
-        
-                format!("MouseMoved over {{ name: '{}', control_type: '{}' bounding_rect: {} }}", ui_element_props.get_element().get_name().unwrap_or_default(), control_type, ui_element_props.get_element().get_bounding_rectangle().unwrap_or(uiautomation::types::Rect::new(0, 0, 0, 0)))
+                let control_type: String = ui_element_props.get_element().get_control_type().to_string();        
+                format!("MouseMoved over {{ name: '{}', control_type: '{}' bounding_rect: {} }}", ui_element_props.get_element().get_name(), control_type, ui_element_props.get_element().get_bounding_rectangle())
             } else {
             // format!("MouseMoved {{ x: {}, y: {} }} ", cursor_position.x, cursor_position.y)
             "MouseMoved { .. }".to_owned()

@@ -13,6 +13,7 @@ windows.workspace = true
 # windows = {version = "0.61.1", features = ["Win32_Graphics_Gdi", "Win32_Foundation", "Win32_UI_HiDpi", "Win32_UI_WindowsAndMessaging"]}
 
 uitree = { path = "../uitree" }
+winevent-monitor = { path = "../winevent-monitor" }
 xmlutil = { path = "../xmlutil" }
 
 egui = "0.32.0"

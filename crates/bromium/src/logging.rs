@@ -1,4 +1,4 @@
-use log::{Level, LevelFilter, Metadata, Record};
+use log::{LevelFilter, Metadata, Record}; // Level
 use pyo3::prelude::*;
 use std::sync::Mutex;
 use std::fs::{File, OpenOptions};

@@ -77,7 +77,7 @@ impl WinEventMonitor {
                         }
                         // name = element.get_name().unwrap_or("".to_string());
                     }
-                    println!("Received event: {:?} on hwnd: {:?} ({})", event_info.event, hwnd.0, name.clone());
+                    // println!("Received event: {:?} on hwnd: {:?} ({})", event_info.event, hwnd.0, name.clone());
                     let evt_monitor_event = WinEvtMonitorEvent {
                         event: event_info.event,
                         hwnd: *event_info.hwnd,

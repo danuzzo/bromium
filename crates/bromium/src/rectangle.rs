@@ -7,14 +7,14 @@ use windows::{
     // Win32::UI::WindowsAndMessaging::*,
 };
 
-use uitree::UIElementInTree;
+use uitree::UIElementInTreeXML;
 
-pub fn get_point_bounding_rect<'a>(point: &'a POINT, ui_elements: &'a Vec<UIElementInTree>) -> Option<&'a UIElementInTree> {
+pub fn get_point_bounding_rect<'a>(point: &'a POINT, ui_elements: &'a Vec<UIElementInTreeXML>) -> Option<&'a UIElementInTreeXML> {
     
     // let mut cntr = 0;
     for element in ui_elements {
         // cntr += 1;
-        let bounding_rect = &element.get_element_props().element.get_bounding_rectangle().unwrap_or(uiautomation::types::Rect::new(0, 0, 0, 0));
+        let bounding_rect = &element.get_element_props().get_bounding_rectangle();
         if is_inside_rectancle(bounding_rect, point.x, point.y) {
             // println!("point: {{ x: {}, y: {} }} searched elements: {} / Found element: {{ name: '{}', control_type: '{}' bounding_rect: {} }}", point.x, point.y, cntr, element.name, element.control_type, element.bounding_rect);        
             return Some(element);

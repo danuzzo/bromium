@@ -1,5 +1,6 @@
 // use windows::Win32::Foundation::POINT;
 
+
 use windows::{
     core::{Error, Result},
     Win32::Foundation::{HWND, COLORREF, POINT, RECT},
@@ -16,11 +17,17 @@ use uitree::UIElementInTreeXML;
 //       as the rectangles are sorted by size
 pub fn get_point_bounding_rect<'a>(point: &'a POINT, ui_elements: &'a Vec<UIElementInTreeXML>) -> Option<&'a UIElementInTreeXML> {
 // pub fn get_point_bounding_rect(point: &Pos2, ui_elements: &Vec<UIElementProps>) -> Option<&UIElementProps> {
+    // printfmt!("Searching for element at point: {{ x: {}, y: {} }} in tree with {} elements.", point.x, point.y, ui_elements.len());
     // let mut cntr = 0;
     for element in ui_elements {
         // cntr += 1;
-        if is_inside_rectancle(&element.get_element_props().get_element().get_bounding_rectangle().unwrap_or(uiautomation::types::Rect::new(0, 0, 0, 0)), point.x, point.y) {
-            // println!("point: {{ x: {}, y: {} }} searched elements: {} / Found element: {{ name: '{}', control_type: '{}' bounding_rect: {} }}", point.x, point.y, cntr, element.name, element.control_type, element.bounding_rect);        
+        // printfmt!("point: {{ x: {}, y: {} }} searching element: {}", point.x, point.y, cntr);
+        // if cntr == 27 {
+        //     dbg!(element);
+        // }
+        let rect = element.get_element_props().get_element().get_bounding_rectangle();
+        if is_inside_rectancle(&rect, point.x, point.y) {
+            // printfmt!("point: {{ x: {}, y: {} }} searched elements: {} / Found element: {{ name: '{}', control_type: '{}' bounding_rect: {} }}", point.x, point.y, cntr, element.get_element_props().get_element().get_name(), element.get_element_props().get_element().get_control_type(), element.get_element_props().get_element().get_bounding_rectangle());            
             return Some(element);
         }
     }

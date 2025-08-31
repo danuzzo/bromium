@@ -3,10 +3,11 @@ use std::sync::Mutex;
 use std::sync::mpsc::{channel, Receiver, Sender};
 
 use pyo3::prelude::*;
+use uiautomation::types::Handle;
 
-use crate::context::ScreenContext;
-use crate::uiauto::{get_ui_element_by_runtimeid, get_ui_element_by_xpath, get_element_by_xpath};
-use uitree::{UITree, get_all_elements};
+use crate::sreen_context::ScreenContext;
+use crate::uiauto::{get_ui_element_by_runtimeid}; // get_ui_element_by_xpath, get_element_by_xpath
+use uitree::{UITreeXML, get_all_elements_xml};
 // use crate::uiexplore::UITree;
 use crate::app_control::launch_or_activate_application;
 
@@ -17,7 +18,7 @@ use screen_capture::{Window, Monitor};
 
 use fs_extra::dir;
 
-use windows::Win32::Foundation::{RECT, POINT}; //HWND, 
+use windows::Win32::Foundation::{POINT, RECT}; //HWND, 
 use windows::Win32::UI::WindowsAndMessaging::{GetCursorPos}; //WindowFromPoint
 
 use uiautomation::{UIElement}; //UIAutomation, 
@@ -259,16 +260,23 @@ fn convert_to_ui_element(element: &Element) -> Result<UIElement, uiautomation::E
             let guard = WINDRIVER.lock().unwrap();
             let windriver = guard.as_ref().ok_or_else(|| uiautomation::Error::new(uiautomation::errors::ERR_NOTFOUND, "WinDriver not initialized"))?;
             let ui_tree = &windriver.ui_tree;
-            if let Some(ui_element) = get_ui_element_by_xpath(element.get_xpath(), ui_tree) {
-                debug!("Element found by xpath.");
-                return Ok(ui_element);
-            } else {
+            if let Some(ui_element) = ui_tree.get_tree().get_element_by_runtime_id(element.get_runtime_id().iter().map(|x| x.to_string()).collect::<Vec<String>>().join("-").as_str()) {
+                debug!("Element found by runtime id in ui tree.");
+                return Ok(ui_element.data.get_element().clone()); 
+             } 
+            // else {
+            //     debug!("Element not found by runtime id in ui tree, trying xpath.");
+            // }
+            // if let Some(ui_element) = get_ui_element_by_xpath(element.get_xpath(), ui_tree) {
+            //     debug!("Element found by xpath.");
+            //     return Ok(ui_element);
+            // } 
+            else {
                 error!("Element not found.");
                 return Err(uiautomation::Error::new(uiautomation::errors::ERR_NOTFOUND, "could not find element"));
             }
         }
     }
-
 }
 
 
@@ -277,7 +285,7 @@ fn convert_to_ui_element(element: &Element) -> Result<UIElement, uiautomation::E
 #[derive(Debug, Clone)]
 pub struct WinDriver {
     timeout_ms: u64,
-    ui_tree: UITree,
+    ui_tree: UITreeXML,
     tree_needs_update: bool,
     // TODO: Add screen context to get scaling factor later on
 }
@@ -289,14 +297,14 @@ impl WinDriver {
         debug!("Creating new WinDriver with timeout: {}ms", timeout_ms);
 
         // get the ui tree in a separate thread
-        let (tx, rx): (Sender<_>, Receiver<UITree>) = channel();
+        let (tx, rx): (Sender<_>, Receiver<UITreeXML>) = channel();
         thread::spawn(|| {
             debug!("Spawning thread to get UI tree");
-            get_all_elements(tx, None);
+            get_all_elements_xml(tx, None, None);
         });
         info!("Spawned separate thread to get ui tree");
         
-        let ui_tree: UITree = rx.recv().unwrap();
+        let ui_tree: UITreeXML = rx.recv().unwrap();
         debug!("UI tree received with {} elements", ui_tree.get_elements().len());
         
         let driver = WinDriver { timeout_ms, ui_tree, tree_needs_update: false };
@@ -362,17 +370,21 @@ impl WinDriver {
 
     fn get_ui_element_by_xpath(&self, xpath: String) -> PyResult<Element> {
         debug!("WinDriver::get_ui_element_by_xpath called.");
-
-        let ui_elem = get_element_by_xpath(xpath.clone(), &self.ui_tree);
+        
+        // let ui_elem = get_element_by_xpath(xpath.clone(), &self.ui_tree);
+        let ui_elem = self.ui_tree.get_element_by_xpath(xpath.as_str());
         if ui_elem.is_none() {
             return PyResult::Err(pyo3::exceptions::PyValueError::new_err("Element not found"));
         }
+        
         let element = ui_elem.unwrap();
-        PyResult::Ok(element)
-        // let name = element.get_name();
-        // let xpath = element.get_xpath();
-        // let handle = element.get_handle();
-        // PyResult::Ok(Element { name, xpath, handle})
+        // PyResult::Ok(element)
+        let name = element.get_name().unwrap_or_default();
+        let xpath = xpath.clone();
+        let handle = element.get_native_window_handle().unwrap_or(Handle::from(0)).into();
+        let runtime_id = element.get_runtime_id().unwrap_or_default();
+        let bounding_rectangle = element.get_bounding_rectangle().unwrap_or(uiautomation::types::Rect::new(0, 0, 0, 0));
+        PyResult::Ok(Element::new(name, xpath, handle, runtime_id, (bounding_rectangle.get_left(), bounding_rectangle.get_top(), bounding_rectangle.get_right(), bounding_rectangle.get_bottom())))
     }
 
     pub fn get_screen_context(&self) -> PyResult<ScreenContext> {
@@ -454,14 +466,14 @@ impl WinDriver {
     fn refresh(&mut self) -> PyResult<()> {
         debug!("WinDriver::refresh called.");
         // get the ui tree in a separate thread
-        let (tx, rx): (Sender<_>, Receiver<UITree>) = channel();
+        let (tx, rx): (Sender<_>, Receiver<UITreeXML>) = channel();
         thread::spawn(|| {
             debug!("Spawning thread to get UI tree");
-            get_all_elements(tx, None);
+            get_all_elements_xml(tx, None, None);
         });
         info!("Spawned separate thread to refresh ui tree");
         
-        let ui_tree: UITree = rx.recv().unwrap();
+        let ui_tree: UITreeXML = rx.recv().unwrap();
         
         self.ui_tree = ui_tree;
         self.tree_needs_update = false;

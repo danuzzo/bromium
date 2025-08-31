@@ -7,7 +7,10 @@ test_bromium.py
 # Admin files
 *.xls*
 *.txt
-*.ppt"
+*.ppt*
+*.png
+*.jpg*
+*.jpeg
 
 # backup files
 /.archive

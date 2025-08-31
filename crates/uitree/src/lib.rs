@@ -11,7 +11,7 @@ mod uiexplore;
 pub use uiexplore::{SaveUIElement, UITree, UIElementInTree, get_all_elements};
 
 mod uiexplore_xml;
-pub use uiexplore_xml::{SaveUIElement as SaveUIElementXML, UITree as UITreeXML, UIElementInTree as UIElementInTreeXML, get_all_elements_xml};
+pub use uiexplore_xml::{UITree as UITreeXML, UIElementInTree as UIElementInTreeXML, get_all_elements_xml}; // SaveUIElement as SaveUIElementXML, 
 
 
 mod uiexplore_iter;
@@ -21,3 +21,6 @@ mod conversion;
 pub use conversion::ConvertFromControlType;
 
 mod commons;
+
+mod save_ui_element;
+pub use save_ui_element::SaveUIElement as SaveUIElementXML;

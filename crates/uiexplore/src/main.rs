@@ -16,38 +16,30 @@ use windows::Win32::Foundation::{POINT, HANDLE};
 
 mod rectangle;
 mod commons;
-// mod winevent;
 
-use ::uiexplore::signal_file;
+// mod winevent;
+// use winevent::*;
 
 mod app_ui;
 use app_ui::UIExplorer;
 
-use eframe::{egui, NativeOptions, Renderer};
+use ::uiexplore::signal_file;
+use uitree::{UITreeXML, get_all_elements_xml};
 
 use std::thread;
 use std::sync::mpsc::{channel, Receiver, Sender};
 
-use uitree::{UITreeXML, get_all_elements_xml};
-
-// pub type UIHashMap<K, V, S = std::hash::RandomState> = std::collections::HashMap<K, V, S>;
-// type UIHashSet<T, S = std::hash::RandomState> = std::collections::HashSet<T, S>;
-
-// mod tree_map;
-// use tree_map::UITreeMap;
-
-// mod uiexplore;
-// use uiexplore::{UITree, UIElementProps, UIElementInTree};
-
+use eframe::{egui, NativeOptions, Renderer};
 
 fn main() -> eframe::Result {
 
+    let app_name = "UI Explore";
+    
     printfmt!("Getting the ui tree");
-
     // get the ui tree in a separate thread
     let (tx, rx): (Sender<_>, Receiver<UITreeXML>) = channel();
     thread::spawn(|| {
-        get_all_elements_xml(tx, None);
+        get_all_elements_xml(tx, None, Some(app_name.to_string()));
     });
     printfmt!("Spawned separate thread to get ui tree");
 
@@ -73,12 +65,13 @@ fn main() -> eframe::Result {
     };
 
     eframe::run_native(
-        "UI Explore",
+        app_name,
         options,
         Box::new(|_cc| {
             // This gives us image support:
             // egui_extras::install_image_loaders(&cc.egui_ctx);
-            Ok(Box::new(UIExplorer::new_with_state(app_size_pos, ui_tree)))
+            // Ok(Box::new(UIExplorer::new(app_name.to_owned())))
+            Ok(Box::new(UIExplorer::new_with_state(app_name.to_owned(), app_size_pos, ui_tree)))
         }),
 
     )
@@ -177,6 +170,7 @@ fn get_screen_scale_factor() -> f32 {
 
 }
 
+#[allow(dead_code)]
 fn launch_start_screen() {
 
     let msg: &str;
