@@ -1,12 +1,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")] // hide console window on Windows in release
-// #![allow(warnings)]
 
 #[macro_use]
 mod macros;
-
-// use windows::Win32::UI::WindowsAndMessaging::*;
-// use windows::Win32::Graphics::Gdi::{GetDC, GetDeviceCaps, LOGPIXELSX, LOGPIXELSY};
-// use windows::Win32::Foundation::HWND;
 
 use windows::Win32::UI::WindowsAndMessaging::{GetSystemMetrics, SM_CXSCREEN, SM_CYSCREEN};
 use windows::Win32::Graphics::Gdi::{MONITOR_FROM_FLAGS, MonitorFromPoint};
@@ -16,9 +11,6 @@ use windows::Win32::Foundation::{POINT, HANDLE};
 
 mod rectangle;
 mod commons;
-
-// mod winevent;
-// use winevent::*;
 
 mod app_ui;
 use app_ui::UIExplorer;
@@ -68,9 +60,7 @@ fn main() -> eframe::Result {
         app_name,
         options,
         Box::new(|_cc| {
-            // This gives us image support:
-            // egui_extras::install_image_loaders(&cc.egui_ctx);
-            // Ok(Box::new(UIExplorer::new(app_name.to_owned())))
+            // create the app itself
             Ok(Box::new(UIExplorer::new_with_state(app_name.to_owned(), app_size_pos, ui_tree)))
         }),
 

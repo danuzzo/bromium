@@ -457,15 +457,24 @@ impl eframe::App for UIExplorer {
         // manage the AppMode / Tree refresh lifecycle
         match &self.app_mode {
             AppMode::Normal(last_refesh) => {
+                
+                if self.auto_refresh {
+                    // switch from reactive mode to continuous mode to 
+                    // ensure the UI is rendered and with that the WinEvents are processed
+                    // continuously even if the mouse is outside the app window
+                    ctx.request_repaint();
+                }
+                
                 // check for WinEvents indicating a change in the UI tree
                 // to avoid excessive refresh, only check every 2 seconds and
                 // only if not currently recording (tracking) the cursor
                 if !self.recording && self.auto_refresh && last_refesh.time.elapsed().as_secs() > 2 {
+                    printfmt!("Checking for WinEvents");
                     let winevents = self.winevent_monitor.check_for_events();
                     let relevant_events = winevents.iter().filter(|e| e.get_ui_element_name() != "UI Explore").count();
-                    // let ui_elem_events = winevents.iter().filter(|e| e.get_ui_element_name() == "UI Explore").count();
+                    let ui_elem_events = winevents.iter().filter(|e| e.get_ui_element_name() == "UI Explore").count();
                     if winevents.len() > 0 {
-                        // printfmt!("Checked for WinEvents, found {} relevant and {} UI Explore events", relevant_events, ui_elem_events);
+                        printfmt!("Checked for WinEvents, found {} relevant and {} UI Explore events", relevant_events, ui_elem_events);
                         if relevant_events > 0 {
                             // printfmt!("Triggering UI tree refresh");
                             self.app_mode = AppMode::NeedsTreeRefresh;
@@ -514,7 +523,7 @@ impl eframe::App for UIExplorer {
                 ui.vertical(|ui| {
                     ui.add_space(2.0);
                     ui.label(format!("Screen: {}x{} @ {:.1}x", self.app_context.screen_width, self.app_context.screen_height, self.app_context.screen_scale));
-                    ui.label(format!("Elemtns detected: {}", self.ui_tree.get_elements().len()));                  
+                    ui.label(format!("Elements detected: {}", self.ui_tree.get_elements().len()));                  
                 }
                 );
                 // ui.label(format!("Clear Frame: {}", state.clear_frame));
