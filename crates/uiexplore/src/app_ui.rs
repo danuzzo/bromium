@@ -211,6 +211,7 @@ pub struct UIExplorer {
     show_history: bool,
     highlighting: bool,
     auto_refresh: bool,
+    simple_xpath: bool,
     ui_tree: UITreeXML,
     tree_state: Option<TreeState>,
     history: DeduplicatedHistory,
@@ -240,6 +241,7 @@ impl UIExplorer {
             show_history: false,
             highlighting: false,
             auto_refresh: false,
+            simple_xpath: false,
             ui_tree,
             tree_state: None,
             history: DeduplicatedHistory::default(),
@@ -261,6 +263,7 @@ impl UIExplorer {
             show_history: false,
             highlighting: false,
             auto_refresh: false,
+            simple_xpath: false,
             ui_tree,
             tree_state: None,
             history: DeduplicatedHistory::default(),
@@ -632,6 +635,13 @@ impl eframe::App for UIExplorer {
                 ui.add_space(2.0);
                 ui.label(" | ");
                 ui.add_space(2.0);
+                
+                ui.checkbox(&mut self.simple_xpath, "Simple XPath").on_hover_text("When enabled, the generated XPath will avoid using the Name attribute even if it is unique. This can be useful when a pure positional path is desired.");
+                
+                ui.add_space(2.0);
+                ui.label(" | ");
+                ui.add_space(2.0);                                
+                
                 ui.checkbox(&mut self.highlighting, "Show Highlight Rectangle");
                 ui.checkbox(&mut self.recording, "Track Cursor").on_hover_text("When enabled, the element under the mouse cursor is automatically selected. Press Escape to disable tracking.");
                 if self.recording {
@@ -763,7 +773,7 @@ impl eframe::App for UIExplorer {
                         ui.end_row();
 
 
-                        let xpath = self.ui_tree.get_xpath_for_element(state.active_ui_element.unwrap_or(0));
+                        let xpath = self.ui_tree.get_xpath_for_element(state.active_ui_element.unwrap_or(0), self.simple_xpath);
                         ui.label("XPath:");
                         ui.label(xpath.clone());
                         if ui.button("📋").clicked() {

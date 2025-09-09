@@ -3,7 +3,7 @@ use std::sync::Mutex;
 use std::sync::mpsc::{channel, Receiver, Sender};
 
 use pyo3::prelude::*;
-use uiautomation::types::Handle;
+// use uiautomation::types::Handle;
 
 use crate::sreen_context::ScreenContext;
 use crate::uiauto::{get_ui_element_by_runtimeid}; // get_ui_element_by_xpath, get_element_by_xpath
@@ -253,29 +253,10 @@ fn convert_to_ui_element(element: &Element) -> Result<UIElement, uiautomation::E
         debug!("Element found by runtime id.");
         return Ok(ui_element);
     } else {
-        // if that fails, try to get the element by xpath
-
-        // get the WINDRIVER context and get the xpath from the element and the context
-        {
-            let guard = WINDRIVER.lock().unwrap();
-            let windriver = guard.as_ref().ok_or_else(|| uiautomation::Error::new(uiautomation::errors::ERR_NOTFOUND, "WinDriver not initialized"))?;
-            let ui_tree = &windriver.ui_tree;
-            if let Some(ui_element) = ui_tree.get_tree().get_element_by_runtime_id(element.get_runtime_id().iter().map(|x| x.to_string()).collect::<Vec<String>>().join("-").as_str()) {
-                debug!("Element found by runtime id in ui tree.");
-                return Ok(ui_element.data.get_element().clone()); 
-             } 
-            // else {
-            //     debug!("Element not found by runtime id in ui tree, trying xpath.");
-            // }
-            // if let Some(ui_element) = get_ui_element_by_xpath(element.get_xpath(), ui_tree) {
-            //     debug!("Element found by xpath.");
-            //     return Ok(ui_element);
-            // } 
-            else {
-                error!("Element not found.");
-                return Err(uiautomation::Error::new(uiautomation::errors::ERR_NOTFOUND, "could not find element"));
-            }
-        }
+        // TODO: This is a fallback in case the runtime id method fails.
+        // If we end up here, it means the element is stale. We should refresh the UI tree and try again.
+        error!("Element not found.");
+        return Err(uiautomation::Error::new(uiautomation::errors::ERR_NOTFOUND, "could not find element"));
     }
 }
 
@@ -346,17 +327,17 @@ impl WinDriver {
         let cursor_position = POINT { x, y };
 
         if let Some(ui_element_in_tree) = crate::rectangle::get_point_bounding_rect(&cursor_position, self.ui_tree.get_elements()) {
-            let xpath = self.ui_tree.get_xpath_for_element(ui_element_in_tree.get_tree_index());
+            let xpath = self.ui_tree.get_xpath_for_element(ui_element_in_tree.get_tree_index(), true);
             trace!("Found element with xpath: {}", xpath);
 
             let ui_element_props = ui_element_in_tree.get_element_props();
             let ui_element_props = ui_element_props.get_element();
-            let bounding_rect = ui_element_props.get_bounding_rectangle().unwrap_or(uiautomation::types::Rect::new(0, 0, 0, 0));
+            let bounding_rect = ui_element_props.get_bounding_rectangle();
             let element = Element::new(
-                ui_element_props.get_name().unwrap_or("".to_string()),
+                ui_element_props.get_name().clone(),
                 xpath,
-                ui_element_props.get_native_window_handle().unwrap_or_default().into(),
-                ui_element_props.get_runtime_id().unwrap_or_default(),
+                ui_element_props.get_handle(),
+                ui_element_props.get_runtime_id().clone(),
                 (bounding_rect.get_left(), bounding_rect.get_top(), bounding_rect.get_right(), bounding_rect.get_bottom())
             );
             info!("Successfully found element at ({}, {}): {}", x, y, element.name);
@@ -379,11 +360,11 @@ impl WinDriver {
         
         let element = ui_elem.unwrap();
         // PyResult::Ok(element)
-        let name = element.get_name().unwrap_or_default();
+        let name = element.get_name().clone();
         let xpath = xpath.clone();
-        let handle = element.get_native_window_handle().unwrap_or(Handle::from(0)).into();
-        let runtime_id = element.get_runtime_id().unwrap_or_default();
-        let bounding_rectangle = element.get_bounding_rectangle().unwrap_or(uiautomation::types::Rect::new(0, 0, 0, 0));
+        let handle = element.get_handle();
+        let runtime_id = element.get_runtime_id().clone();
+        let bounding_rectangle = element.get_bounding_rectangle();
         PyResult::Ok(Element::new(name, xpath, handle, runtime_id, (bounding_rectangle.get_left(), bounding_rectangle.get_top(), bounding_rectangle.get_right(), bounding_rectangle.get_bottom())))
     }
 

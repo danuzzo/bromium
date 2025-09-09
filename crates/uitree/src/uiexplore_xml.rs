@@ -17,7 +17,7 @@ use uiautomation::core::UIAutomation;
 use uiautomation::{UIElement, UITreeWalker};
 
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct UIElementInTree {
     element_props: SaveUIElement,
     tree_index: usize,
@@ -37,7 +37,7 @@ impl UIElementInTree {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct UITree {
     tree: UITreeMap<SaveUIElement>,
     xml_dom_tree: String,
@@ -82,13 +82,13 @@ impl UITree {
 
     }
     
-    pub fn get_xpath_for_element(&self, index: usize) -> String {
+    pub fn get_xpath_for_element(&self, index: usize, simple_path: bool) -> String {
 
         let node = &self.tree.node(index);
         let save_ui_elem = &node.data;
         // let rt_id = save_ui_elem.get_element().get_runtime_id().unwrap_or(vec![0, 0, 0, 0]).iter().map(|x| x.to_string()).collect::<Vec<String>>().join("-");
         let rt_id = save_ui_elem.get_element().get_runtime_id().iter().map(|x| x.to_string()).collect::<Vec<String>>().join("-");
-        get_xpath_full_from_runtime_id(rt_id.as_str(), self.get_xml_dom_tree())
+        get_xpath_full_from_runtime_id(rt_id.as_str(), self.get_xml_dom_tree(), simple_path)
 
     }
 
@@ -120,36 +120,6 @@ impl UITree {
     }
 
 }
-
-
-// #[derive(Debug, Clone)]
-// pub struct SaveUIElement {
-//     pub element: UIElement,
-//     pub bounding_rect_size: i32,
-//     pub level: usize,
-//     pub z_order: usize,
-//     pub xpath: Option<String>,
-
-// }
-
-// unsafe impl Send for SaveUIElement {}
-// unsafe impl Sync for SaveUIElement {}
-
-// impl SaveUIElement {
-//     pub fn new(element: UIElement, level: usize, z_order: usize) -> Self {
-//         let bounding_rect: uiautomation::types::Rect = element.get_bounding_rectangle().unwrap_or(uiautomation::types::Rect::new(0, 0, 0, 0));
-//         let bounding_rect_size: i32 = (bounding_rect.get_right() - bounding_rect.get_left()) * (bounding_rect.get_bottom() - bounding_rect.get_top());            
-//         SaveUIElement { element, bounding_rect_size, level, z_order, xpath: None}
-//     }
-
-//     pub fn get_element(&self) -> &UIElement {
-//         &self.element
-//     }
-
-//     pub fn set_xpath(&mut self, xpath: String) {
-//         self.xpath = Some(xpath)
-//     }
-// }
 
 
 pub fn get_all_elements_xml(tx: Sender<UITree>, max_depth: Option<usize>, calling_window_caption: Option<String>) {   

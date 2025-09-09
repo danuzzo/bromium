@@ -19,7 +19,6 @@ pub struct SaveUIElement {
     level: usize,
     z_order: usize,
     xpath: Option<String>,
-    // element: Mutex<Option<&'a UIElement>>,
 }
 
 impl SaveUIElement {
@@ -69,9 +68,6 @@ impl SaveUIElement {
     pub fn get_xpath(&self) -> Option<&String> {
         self.xpath.as_ref()
     }
-    // pub fn set_element(&mut self, element: &UIElement) {
-    //     self.element = Mutex::new(Some(element));
-    // }
 
     // return reference to self to avoid
     // code using the SaveUIElement from breaking
@@ -80,19 +76,32 @@ impl SaveUIElement {
         self
     }
 
-    // pub fn get_element(&self) -> &UIElement {
-    //     if let Some(el) = &self.element {
-    //         return el;
-    //     } else {
-    //         let el = get_ui_element_by_runtimeid(self.runtime_id.clone()).expect("Failed to find element by runtime id");
-    //         self.element.insert(el.clone());
-    //         return &self.element.unwrap();
-    //     }
-    // }
-
     pub fn set_xpath(&mut self, xpath: String) {
         self.xpath = Some(xpath)
     }
+
+    pub fn get_ui_automation_ui_element(&self) -> Option<UIElement> {
+        debug!("Getting ui element from SaveUIElement with runtime id: {:?}", self.runtime_id);
+        
+        let runtime_id: Vec<i32> = self.runtime_id.clone();
+        
+        let uia = get_ui_automation_instance().unwrap();
+        let matcher = uia.create_matcher().timeout(0).filter(Box::new(RuntimeIdFilter(runtime_id))).depth(99);
+        let element = matcher.find_first();
+        
+        match element {
+            Ok(e) => {
+                info!("Element found by runtime id: {:?}", e);
+                Some(e)
+            },
+            Err(e) => {
+                error!("Error finding element by runtime id: {:?}", e);
+                None
+            }
+        }
+        
+    }
+
 
 
 }
@@ -135,7 +144,21 @@ impl From<UIElement> for SaveUIElement {
         }
     }
 }
-#[allow(dead_code)]
+
+impl TryFrom<&SaveUIElement> for UIElement {
+    type Error = ();
+
+    fn try_from(value: &SaveUIElement) -> Result<Self, Self::Error> {
+        if let Some(elem) = value.get_ui_automation_ui_element() {
+            Ok(elem)
+        } else {
+            Err(())
+        
+        }
+    }
+}
+
+// #[allow(dead_code)]
 fn get_ui_automation_instance() -> Option<UIAutomation> {
     debug!("Creating UIAutomation instance");
 
@@ -167,7 +190,7 @@ fn get_ui_automation_instance() -> Option<UIAutomation> {
 
 }
 
-#[allow(dead_code)]
+// #[allow(dead_code)]
 struct RuntimeIdFilter(Vec<i32>);
 
 impl uiautomation::filters::MatcherFilter for RuntimeIdFilter {
@@ -179,23 +202,23 @@ impl uiautomation::filters::MatcherFilter for RuntimeIdFilter {
     }
 }
 
-#[allow(dead_code)]
-pub fn get_ui_element_by_runtimeid(runtime_id: Vec<i32>) -> Option<UIElement> {
-    debug!("Searching for element with runtime id: {:?}", runtime_id);
-    // let automation = UIAutomation::new().unwrap();
-    let uia = get_ui_automation_instance().unwrap();
-    let matcher = uia.create_matcher().timeout(0).filter(Box::new(RuntimeIdFilter(runtime_id))).depth(99);
-    let element = matcher.find_first();
+// #[allow(dead_code)]
+// pub fn get_ui_element_by_runtimeid(runtime_id: Vec<i32>) -> Option<UIElement> {
+//     debug!("Searching for element with runtime id: {:?}", runtime_id);
+//     // let automation = UIAutomation::new().unwrap();
+//     let uia = get_ui_automation_instance().unwrap();
+//     let matcher = uia.create_matcher().timeout(0).filter(Box::new(RuntimeIdFilter(runtime_id))).depth(99);
+//     let element = matcher.find_first();
     
-    match element {
-        Ok(e) => {
-            info!("Element found by runtime id: {:?}", e);
-            Some(e)
-        },
-        Err(e) => {
-            error!("Error finding element by runtime id: {:?}", e);
-            None
-        }
-    }
+//     match element {
+//         Ok(e) => {
+//             info!("Element found by runtime id: {:?}", e);
+//             Some(e)
+//         },
+//         Err(e) => {
+//             error!("Error finding element by runtime id: {:?}", e);
+//             None
+//         }
+//     }
     
-}
+// }

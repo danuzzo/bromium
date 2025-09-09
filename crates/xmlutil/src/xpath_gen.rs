@@ -14,7 +14,7 @@ fn is_attribute_unique(doc: &Document, node: Node, attr_name: &str) -> bool {
 }
 
 /// Generate a robust, ROBULA+-like XPath for the given node.
-fn get_xpath_robula(doc: &Document, node: Node) -> String {
+fn get_xpath_robula(doc: &Document, node: Node, simple_xpath: bool) -> String {
     // Rule 1: Prefer globally unique attribute
     for attr in ["id", "name"] {
         if is_attribute_unique(doc, node, attr) {
@@ -31,32 +31,32 @@ fn get_xpath_robula(doc: &Document, node: Node) -> String {
             let tag = n.tag_name().name();
 
             // Try using unique attribute in parent scope
-            if is_attribute_unique(doc, n, "name") {
-                path_parts.push(format!("{}[@name='{}']", tag, n.attribute("name").unwrap()));
-                break;
-            }
-
-            // Determine if this node needs an index
-            let parent = n.parent();
-            let same_tag_count = parent.map_or(1, |p| {
-                p.children()
-                    .filter(|c| c.is_element() && c.tag_name().name() == tag)
-                    .count()
-            });
-
-            if same_tag_count > 1 {
-                // Count this node's position among siblings
-                let mut index = 1;
-                let mut prev = n.prev_sibling();
-                while let Some(sib) = prev {
-                    if sib.is_element() && sib.tag_name().name() == tag {
-                        index += 1;
-                    }
-                    prev = sib.prev_sibling();
-                }
-                path_parts.push(format!("{}[{}]", tag, index));
+            if !simple_xpath && is_attribute_unique(doc, n, "Name") {
+                path_parts.push(format!("{}[@Name='{}']", tag, n.attribute("Name").unwrap()));
             } else {
-                path_parts.push(tag.to_string());
+
+                // Determine if this node needs an index
+                let parent = n.parent();
+                let same_tag_count = parent.map_or(1, |p| {
+                    p.children()
+                        .filter(|c| c.is_element() && c.tag_name().name() == tag)
+                        .count()
+                });
+
+                if same_tag_count > 1 {
+                    // Count this node's position among siblings
+                    let mut index = 1;
+                    let mut prev = n.prev_sibling();
+                    while let Some(sib) = prev {
+                        if sib.is_element() && sib.tag_name().name() == tag {
+                            index += 1;
+                        }
+                        prev = sib.prev_sibling();
+                    }
+                    path_parts.push(format!("{}[{}]", tag, index));
+                } else {
+                    path_parts.push(tag.to_string());
+                }
             }
         }
         current = n.parent();
@@ -82,14 +82,14 @@ fn get_xpath_robula(doc: &Document, node: Node) -> String {
 
 // }
 
-pub fn get_xpath_full_from_runtime_id(runtime_id: &str, xml: &str) -> String {
+pub fn get_xpath_full_from_runtime_id(runtime_id: &str, xml: &str, simple_path: bool) -> String {
 
     let doc = Document::parse(xml).unwrap();
 
     if let Some(node_id) = doc
         .descendants()
         .find(|n| n.attribute("RtID") == Some(runtime_id)) {
-            get_xpath_robula(&doc, node_id)
+            get_xpath_robula(&doc, node_id, simple_path)
         } else {
             "UI Element not found - no xpath available".to_string()
         }

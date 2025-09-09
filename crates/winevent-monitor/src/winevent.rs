@@ -47,54 +47,60 @@ impl WinEventMonitor {
     }
         
     pub fn check_for_events(&mut self) -> Vec<WinEvtMonitorEvent> {
+        
+        // println!("Checking for events in WinEventMonitor");
         let mut output: Vec<WinEvtMonitorEvent> = Vec::new();
-
 
         // Main event processing 
         let mut i = 0;
-        let mut name = "".to_string();
+        let mut name = "no name retrieved".to_string();
         let mut rt_id: Vec<i32> = vec![0, 0, 0, 0];
+
         // Check for new events
-        // match self.rx_channel.try_recv() {
-        while let Ok(event_info) = self.rx_channel.try_recv() {
-            // Ok(event_info) => {
-                let hwnd = *event_info.hwnd;
-                if hwnd.0 != self.mouse_hwnd.0 {
-                    
-                    if self.last_hwnd.0 != hwnd.0 {
-                        self.last_hwnd = hwnd;
-                        let handle: Handle = Handle::from(hwnd.0 as isize);
-                        let element: Result<UIElement, uiautomation::Error> = self.uia.element_from_handle(handle);
-                        match element {
-                            Ok(e) => {
-                                name = e.get_name().unwrap_or("".to_string());
-                                rt_id = e.get_runtime_id().unwrap_or(vec![0, 0, 0, 0]);
-                            }
-                            Err(_e) => {
-                                // name = format!("Failed to get element from handle: {:?}", e);
-                                name = "invalid hwnd".to_string();
-                            }
-                        }
-                        // name = element.get_name().unwrap_or("".to_string());
-                    }
-                    // println!("Received event: {:?} on hwnd: {:?} ({})", event_info.event, hwnd.0, name.clone());
-                    let evt_monitor_event = WinEvtMonitorEvent {
-                        event: event_info.event,
-                        hwnd: *event_info.hwnd,
-                        ui_element_name: name.clone(),
-                        ui_element_runtime_id: rt_id.clone(),
-                    };
-                    output.push(evt_monitor_event);
+        let mut rx_iter = self.rx_channel.try_iter();
+        if rx_iter.next().is_none() {
+            // printfmt!("No WinEvents in channel");
+            return output;
+        }
+
+        // let mut cnt = 0;
+        while let Some(event_info) = rx_iter.next() {
+            // cnt += 1;
+            let hwnd = *event_info.hwnd;
+            if hwnd.0 != self.mouse_hwnd.0 {
+                
+                if self.last_hwnd.0 != hwnd.0 {
+                    self.last_hwnd = hwnd;
+
+                    // TODO: This is currently very unreliable, often fails to get the element from the hwnd
+                    // and sometimes even hangs the app. Needs more investigation. Potiential solution is to
+                    // run this loop continuously in a separate thread and cache the results in a vector.
+
+                    // let handle: Handle = Handle::from(hwnd.0 as isize);
+                    // let element: Result<UIElement, uiautomation::Error> = self.uia.element_from_handle(handle);
+                    // match element {
+                    //     Ok(e) => {
+                    //         name = e.get_name().unwrap_or("".to_string());
+                    //         rt_id = e.get_runtime_id().unwrap_or(vec![0, 0, 0, 0]);
+                    //     }
+                    //     Err(_e) => {
+                    //         // name = format!("Failed to get element from handle: {:?}", e);
+                    //         name = "invalid hwnd".to_string();
+                    //     }
+                    // }
+
                 }
+
+                let evt_monitor_event = WinEvtMonitorEvent {
+                    event: event_info.event,
+                    hwnd: *event_info.hwnd,
+                    ui_element_name: name.clone(),
+                    ui_element_runtime_id: rt_id.clone(),
+                };
+                output.push(evt_monitor_event);
             }
-            // Err(std::sync::mpsc::TryRecvError::Empty) => {
-            //     // No events available, sleep for a bit
-            //     // thread::sleep(std::time::Duration::from_secs(1));
-            // }
-            // Err(e) => {
-            //     eprintln!("Channel error: {}", e);
-            // }
-        // }
+        }
+        // printfmt!("Processed {} WinEvents from channel", cnt);
         output
     }
 
@@ -104,7 +110,7 @@ impl Drop for WinEventMonitor {
     fn drop(&mut self) {
         // Cleanup
         self.hook.uninstall().unwrap();
-        // println!("Hook uninstalled, exiting now");
+        // printfmt!("Hook uninstalled, exiting now");
         
     }
 }
@@ -146,10 +152,12 @@ struct WinEventInfo {
 
 fn create_event_handler(tx: Sender<WinEventInfo>) -> impl Fn(Event, OpaqueHandle<WindowHandle>, i32, i32, u32, u32) {
     move |ev, ohwnd: OpaqueHandle<WindowHandle>, _, _, _, _| {
+        // printfmt!("Event received: {:?} on hwnd: {:?}", ev, ohwnd);
         tx.send(WinEventInfo { 
             event: ev, 
             hwnd: ohwnd,
         }).unwrap_or_else(|e| eprintln!("Failed to send event: {}", e));
+        // printfmt!("Event sent to channel");
     }
 }
 
@@ -191,7 +199,7 @@ fn create_hook() -> (WinEventHook, Receiver<WinEventInfo>) {
         .finish();
 
     // Create handler and install hook
-    println!("Installing hook");
+    printfmt!("Installing hook");
     let handler = create_event_handler(tx);
     let hook = win_event_hook::WinEventHook::install(config, handler).unwrap();
     (hook, rx)
@@ -214,7 +222,7 @@ fn get_ui_automation_instance() -> Option<UIAutomation> {
             match uia_direct_res {
                 Ok(uia_direct_ok) => {
                     uia = uia_direct_ok;
-                    // printfmt!("UIAutomation instance created successfully using direct method.");
+                    printfmt!("UIAutomation instance created successfully using direct method.");
                 },
                 Err(e_direct) => {
                     printfmt!("Failed to create UIAutomation instance using direct method: {:?}", e_direct);
