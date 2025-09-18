@@ -34,15 +34,38 @@ impl Default for XpathQueryResult {
 
 #[derive(Debug, Clone)]
 pub struct XpathResult {
+    success: bool,
+    error_msg: Option<String>,
     result_count: usize,
     result: Vec<XpathQueryResult>,
 }
 
 impl XpathResult {
-    fn new(result_count: usize, result: Vec<XpathQueryResult>) -> Self {
-        XpathResult { result_count, result }
+    fn new(success: bool, error_msg: Option<String>, result_count: usize, result: Vec<XpathQueryResult>) -> Self {
+        XpathResult { success, error_msg, result_count, result }
     }
     
+    pub fn set_success(&mut self, success: bool) {
+        self.success = success;
+    }
+
+    pub fn set_error_msg(&mut self, error_msg: String) {
+        self.error_msg = Some(error_msg);
+    }
+
+    pub fn is_success(&self) -> bool {
+        self.success
+    }
+
+    pub fn get_error_msg(&self) -> String {
+        
+        let mut out: String = "".to_string();
+        if let Some(err_msg) = self.error_msg.as_ref() {
+            out = err_msg.clone();
+        }
+        out
+    }
+
     pub fn get_result_count(&self) -> usize {
         self.result_count
     }
@@ -79,13 +102,15 @@ fn execute_query(
     doc: Option<xee_xpath::DocumentHandle>,
 ) -> Result<XpathResult, anyhow::Error> {
 
-    let no_result = XpathResult::new(0, vec![XpathQueryResult::default()]);
+    let mut no_result = XpathResult::new(false, None, 0, vec![XpathQueryResult::default()]);
 
     let sequence_query = queries.sequence(xpath);
     let sequence_query = match sequence_query {
         Ok(sequence_query) => sequence_query,
         Err(e) => {
-            render_error(xpath, e);
+            let err_msg = render_error(xpath, e);
+            no_result.set_success(false);
+            no_result.set_error_msg(err_msg);
             return Ok(no_result);
         }
     };
@@ -99,7 +124,9 @@ fn execute_query(
     let sequence = match sequence {
         Ok(sequence) => sequence,
         Err(e) => {
-            render_error(xpath, e);
+            let err_msg = render_error(xpath, e);
+            no_result.set_success(false);
+            no_result.set_error_msg(err_msg);
             return Ok(no_result);
         }
     };
@@ -115,7 +142,7 @@ fn execute_query(
     }
 
     // construct the result
-    let result = XpathResult::new(sequence.len(),results);
+    let result = XpathResult::new(true, None, sequence.len(), results);
 
     Ok(result)
 }
@@ -144,24 +171,52 @@ fn make_static_context_builder<'a>(
 }
 
 
+// ariadne error report generation
+
+use ariadne::{Cache, CharSet, Label, Config, Report, ReportKind, Source, Span, IndexType};
 
 
-fn render_error(src: &str, e: Error) {
-    let red = ariadne::Color::Red;
+fn write_ariadne_report_to_string<C: Cache<<std::ops::Range<usize> as Span>::SourceId>>(report: &Report, cache: C) -> String {
+    let mut vec = Vec::new();
+    report.write(cache, &mut vec).unwrap();
+    String::from_utf8(vec).unwrap()
+}
 
-    let mut report = ariadne::Report::build(ariadne::ReportKind::Error, ("source", (0..0)))
-        .with_code(e.error.code());
+fn no_color_and_ascii() -> Config {
+    Config::default()
+        .with_color(false)
+        // Using Ascii so that the inline snapshots display correctly
+        // even with fonts where characters like '┬' take up more space.
+        .with_char_set(CharSet::Ascii)
+}
+
+fn remove_trailing(s: String) -> String {
+    s.lines().flat_map(|l| [l.trim_end(), "\n"]).collect()
+}
+
+
+
+fn render_error(src: &str, e: Error) -> String {
+
+    let mut rpt = Report::build(ReportKind::Error, 0..0)
+                                .with_config(no_color_and_ascii().with_index_type(IndexType::Byte))
+                                .with_code(e.error.code())
+                                .with_message("invalid xpath expression");
+
+    
 
     if let Some(span) = e.span {
-        report = report.with_label(
-            ariadne::Label::new(("source", span.range()))
+        rpt = rpt.with_label(
+            Label::new(span.range())
                 .with_message(e.error.message())
-                .with_color(red),
         )
     }
-    report
-        .finish()
-        .eprint(("source", ariadne::Source::from(src)))
-        .unwrap();
-    println!("{}", e.error.note());
+
+    let rpt_final = rpt.finish();
+
+    let msg = remove_trailing(write_ariadne_report_to_string(&rpt_final, Source::from(src)));
+
+    msg
+    
 }
+
