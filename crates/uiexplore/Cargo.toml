@@ -21,4 +21,5 @@ wgpu = "25.0.2"
 eframe = {version = "0.32.0", features = ["wgpu"] } #, no-default-features = true, features = ["glow"]}
 env_logger = "0.11.5"
 time = "0.3.37"
+egui_code_editor = "0.2.17"
 

@@ -5,11 +5,11 @@ use std::thread;
 use std::sync::mpsc::{channel, Receiver, Sender};
 
 use eframe::egui;
-
 use egui::Response;
+use egui_code_editor::{CodeEditor, ColorTheme, Syntax};
+
 use windows::Win32::UI::WindowsAndMessaging::GetCursorPos;
 use windows::Win32::Foundation::{POINT, RECT};
-
 
 
 #[allow(unused)]
@@ -731,6 +731,9 @@ impl UIExplorer {
         }
         let xpath_input = self.xpath_input.as_mut().unwrap();
 
+        let screen_size = ctx.screen_rect();
+        let screen_width = screen_size.width();
+        let elem_width = screen_width * 0.9;
 
         egui::CentralPanel::default().show(ctx, |ui| {
             // let mut result = "".to_string();
@@ -741,7 +744,7 @@ impl UIExplorer {
             let response = ui.add(
                 egui::TextEdit::singleline(xpath_input)
                     .hint_text(placeholder)
-                    .desired_width(self.app_context.app_width * 0.8)
+                    .desired_width(elem_width)
             );
 
             // Check if Enter was pressed while the text edit had focus 
@@ -766,13 +769,27 @@ impl UIExplorer {
 
             if let Some(mut outcome) = self.xpath_eval_result.clone() {
                 ui.add_space(4.0);
-                ui.add(egui::TextEdit::multiline(&mut outcome)
-                                            .desired_width(self.app_context.app_width * 0.8)
-                                            .code_editor()
-                );
-                
-                // ui.code_editor(&mut outcome).desi;
-                // ui.label(outcome);
+              
+                egui::ScrollArea::vertical()
+                    .auto_shrink(false)
+                    .show(ui, |ui| {
+                        // ui.add(egui::TextEdit::multiline(&mut outcome)
+                        //                             .desired_width(screen_width)
+                        //                             .code_editor()
+                        // );
+                        // ui.add(
+                            ui.add_space(4.0);
+                            CodeEditor::default()
+                            .id_source("code editor")
+                            .desired_width(screen_width)
+                            .with_rows(12)
+                            .with_fontsize(12.0)
+                            .with_theme(ColorTheme::GITHUB_DARK)
+                            .with_syntax(Syntax::rust())
+                            .with_numlines(true)
+                            .show(ui, &mut outcome);
+                        // );
+                    });
             }
             
         });
