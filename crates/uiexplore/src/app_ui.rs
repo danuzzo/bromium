@@ -1,12 +1,12 @@
 use time::{Duration, OffsetDateTime as DateTime};
-use xmlutil::xpath_eval;
+use xmlutil::{xpath_eval, XpathResult};
 
 use std::thread;
 use std::sync::mpsc::{channel, Receiver, Sender};
 
 use eframe::egui;
-use egui::Response;
-use egui_code_editor::{CodeEditor, ColorTheme, Syntax};
+use egui::Response;  // TextBuffer
+// use egui_code_editor::{CodeEditor, ColorTheme, Syntax};
 
 use windows::Win32::UI::WindowsAndMessaging::GetCursorPos;
 use windows::Win32::Foundation::{POINT, RECT};
@@ -217,7 +217,7 @@ pub struct UIExplorer {
     auto_refresh: bool,
     simple_xpath: bool,
     xpath_input: Option<String>,
-    xpath_eval_result: Option<String>,
+    xpath_eval_result: Option<XpathResult>,
     ui_tree: UITreeXML,
     tree_state: Option<TreeState>,
     history: DeduplicatedHistory,
@@ -747,54 +747,87 @@ impl UIExplorer {
                     .desired_width(elem_width)
             );
 
+            // Render the theme selector
+            let mut theme =
+                egui_extras::syntax_highlighting::CodeTheme::from_memory(ui.ctx(), ui.style());
+
+            ui.collapsing("Theme", |ui| {
+                ui.group(|ui| {
+                    theme.ui(ui);
+                    theme.clone().store_in_memory(ui.ctx());
+                });
+            });
+
+
             // Check if Enter was pressed while the text edit had focus 
             if response.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter)) {
                 
-                // Use the entered text
+                // Use the entered text and evaluate the expression
                 let expr = xpath_input.clone();
                 let srcxml = self.ui_tree.get_xml_dom_tree().to_owned(); // your XML source
                 let eval_result = xpath_eval::eval_xpath(expr, srcxml);
-                let result: String;
-                if eval_result.is_success() {
-                    let res_cnt = eval_result.get_result_count();
-                    let itms = eval_result.get_result_items().iter().map(|s| s.get_item_xml()).collect::<Vec<_>>().join("\n\n");
-                    result = format!("Number of items matching expression: {}\n\nMatching elements:\n\n{}", res_cnt, itms);
-                } else {
-                    result = eval_result.get_error_msg(); 
-                }
-
-                self.xpath_eval_result = Some(result);
+                self.xpath_eval_result = Some(eval_result);
 
             }
 
-            if let Some(mut outcome) = self.xpath_eval_result.clone() {
-                ui.add_space(4.0);
+            if let Some(outcome) = self.xpath_eval_result.clone() {
+                ui.add_space(8.0);
               
-                egui::ScrollArea::vertical()
-                    .auto_shrink(false)
-                    .show(ui, |ui| {
-                        // ui.add(egui::TextEdit::multiline(&mut outcome)
-                        //                             .desired_width(screen_width)
-                        //                             .code_editor()
-                        // );
-                        // ui.add(
-                            ui.add_space(4.0);
-                            CodeEditor::default()
-                            .id_source("code editor")
-                            .desired_width(screen_width)
-                            .with_rows(12)
-                            .with_fontsize(12.0)
-                            .with_theme(ColorTheme::GITHUB_DARK)
-                            .with_syntax(Syntax::rust())
-                            .with_numlines(true)
-                            .show(ui, &mut outcome);
-                        // );
-                    });
-            }
-            
-        });
+                // render the result
+                if !outcome.is_success() {                    
+                    // display the error message
+                    ui.add(egui::TextEdit::multiline(&mut outcome.get_error_msg())
+                                                    .desired_width(elem_width)
+                                                    .code_editor()
+                        );                    
+                } else {
+                    // display the result
+                    let res_cnt = outcome.get_result_count();
+                    let item_cnt = format!("Number of items matching expression: {}", res_cnt);
+                    let mut itms: String;
+                    if res_cnt > 1 {
+                        itms = outcome.get_result_items().iter().map(|s| s.get_item_xml()).collect::<Vec<_>>().join("\n\n----------------------- next item -----------------------\n\n\n");
+                    } else {
+                        itms = outcome.get_result_items().iter().map(|s| s.get_item_xml()).collect::<Vec<_>>().join("\n");
+                    }
+                                        
+                    ui.label(item_cnt);
+                    ui.add_space(6.0);
+                    ui.label("Matching elements:");
+                    ui.add_space(6.0);
 
+                    // render the code editor 
+                    let language = "xml".to_string();
+
+                    let mut layouter = |ui: &egui::Ui, buf: &dyn egui::TextBuffer, wrap_width: f32| {
+                        let mut layout_job = egui_extras::syntax_highlighting::highlight(
+                            ui.ctx(),
+                            ui.style(),
+                            &theme,
+                            buf.as_str(),
+                            language.as_str(),
+                        );
+                        layout_job.wrap.max_width = wrap_width;
+                        ui.fonts(|f| f.layout_job(layout_job))
+                    };
+
+                    egui::ScrollArea::vertical().show(ui, |ui| {
+                        ui.add(
+                            egui::TextEdit::multiline(&mut itms)
+                                .font(egui::TextStyle::Monospace) // for cursor height
+                                .code_editor()
+                                .desired_rows(10)
+                                .lock_focus(true)
+                                .desired_width(f32::INFINITY)
+                                .layouter(&mut layouter),
+                        );
+                    });
+
+                }
+            } 
+        });
     }
+
 
     #[inline(always)]
     fn process_event(&mut self, event: &egui::Event, state: &mut TreeState) {

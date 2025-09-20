@@ -1,7 +1,9 @@
 use xee_xpath::error::Error;
 use xee_xpath::context::StaticContextBuilder;
+use xee_xpath::error::SourceSpan;
 use xee_xpath::Itemable;
 use xee_xpath::Query;
+use crate::pretty_print::pretty_print_xml;
 
 #[derive(Debug, Clone)]
 pub struct XpathQueryResult {
@@ -135,7 +137,7 @@ fn execute_query(
     for idx in 0..sequence.len() {
         let itm = sequence.get(idx).unwrap();
         let qry_result = XpathQueryResult::new(
-         itm.display_representation(documents.xot(), &context).unwrap_or("error getting xpath".to_string()),
+         pretty_print_xml(&itm.display_representation(documents.xot(), &context).unwrap_or("error getting xpath".to_string())),
         itm.string_value(documents.xot()).unwrap_or("error getting string value".to_string())
     );
         results.push(qry_result);
@@ -198,7 +200,15 @@ fn remove_trailing(s: String) -> String {
 
 fn render_error(src: &str, e: Error) -> String {
 
-    let mut rpt = Report::build(ReportKind::Error, 0..0)
+    let primary_span: SourceSpan;
+
+    if let Some(e_span) = e.span {
+        primary_span = e_span;
+    } else {
+        primary_span = SourceSpan::from(0..0);
+    }
+
+    let mut rpt = Report::build(ReportKind::Error, primary_span.range())
                                 .with_config(no_color_and_ascii().with_index_type(IndexType::Byte))
                                 .with_code(e.error.code())
                                 .with_message("invalid xpath expression");

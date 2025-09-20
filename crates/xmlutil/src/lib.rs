@@ -1,10 +1,12 @@
 pub mod xpath_gen;
 pub mod xpath_eval;
 pub mod xml;
+pub mod pretty_print;
 
 pub use xpath_gen::*;
 pub use xpath_eval::*;
 pub use xml::*;
+// pub use pretty_print::*;
 
 #[cfg(test)]
 mod tests {
