@@ -14,7 +14,7 @@ use windows::Win32::Foundation::{POINT, RECT};
 
 #[allow(unused)]
 use crate::{rectangle, AppContext}; //winevent
-use uitree::{get_all_elements_xml, SaveUIElementXML, UIElementInTreeXML, UITreeXML };
+use uitree::{get_all_elements_xml, SaveUIElementXML, UIElementInTreeXML, UITreeXML }; //SaveUIElement, 
 use winevent_monitor::{WinEventMonitor};
 
 #[derive(Clone, Debug)]
@@ -218,6 +218,7 @@ pub struct UIExplorer {
     simple_xpath: bool,
     xpath_input: Option<String>,
     xpath_eval_result: Option<XpathResult>,
+    xpath_highlighting: bool,
     ui_tree: UITreeXML,
     tree_state: Option<TreeState>,
     history: DeduplicatedHistory,
@@ -251,6 +252,7 @@ impl UIExplorer {
             simple_xpath: false,
             xpath_input: None,
             xpath_eval_result: None,
+            xpath_highlighting: false,
             ui_tree,
             tree_state: None,
             history: DeduplicatedHistory::default(),
@@ -276,6 +278,7 @@ impl UIExplorer {
             simple_xpath: false,
             xpath_input: None,
             xpath_eval_result: None,
+            xpath_highlighting: false,
             ui_tree,
             tree_state: None,
             history: DeduplicatedHistory::default(),
@@ -482,8 +485,18 @@ impl UIExplorer {
                 ui.radio_value(&mut self.display_mode, DisplayMode::Explore, "Explore");
                 ui.radio_value(&mut self.display_mode, DisplayMode::XpathTest, "Test Xpath");
 
+                // store the previous highligting setting
+                let prev_highlight = self.highlighting;
+                
                 match self.display_mode {
                     DisplayMode::XpathTest => {
+
+                        ui.add_space(2.0);
+                        ui.label(" | ");
+                        ui.add_space(2.0);                                
+                        
+                        ui.checkbox(&mut self.highlighting, "Show Highlight Rectangle");
+
                         //skip rendering further options
                     },
 
@@ -493,7 +506,6 @@ impl UIExplorer {
                         ui.label(" | ");
                         ui.add_space(2.0);
 
-                        let prev_highlight = self.highlighting;
                         if ui.checkbox(&mut self.auto_refresh, "Auto Refresh").on_hover_text("When enabled, the UI tree is automatically refreshed when changes are detected in the Windows UI Tree.").clicked() {
                             if self.auto_refresh {
                                 match self.app_mode {
@@ -530,23 +542,26 @@ impl UIExplorer {
                         if self.recording {
                             ui.checkbox(&mut self.show_history, "Show Event History");
                         }
-                        let new_highlight = self.highlighting;
-                        
-                        // clear any highlighted surrounding rectangle as 
-                        if new_highlight != prev_highlight && new_highlight == false {
-                            printfmt!("Old highlight value was {}, new one is {}", prev_highlight, new_highlight);
-                            let rect: RECT = RECT { 
-                                left: 0, 
-                                top: 0, 
-                                right: self.app_context.screen_width, 
-                                bottom: self.app_context.screen_height, 
-                            };
-                            rectangle::clear_frame(rect).unwrap();
-                            state.clear_frame = false;
-                        }                        
                         
                     },
                 }
+
+                // manage the highlighting lifecycle
+                let new_highlight = self.highlighting;
+                
+                // clear any highlighted surrounding rectangle as 
+                if new_highlight != prev_highlight && new_highlight == false {
+                    printfmt!("Old highlight value was {}, new one is {}", prev_highlight, new_highlight);
+                    let rect: RECT = RECT { 
+                        left: 0, 
+                        top: 0, 
+                        right: self.app_context.screen_width, 
+                        bottom: self.app_context.screen_height, 
+                    };
+                    rectangle::clear_frame(rect).unwrap();
+                    state.clear_frame = false;
+                }                        
+
 
             });
 
@@ -608,46 +623,50 @@ impl UIExplorer {
                 
             ui.horizontal(|ui| {
 
+                // Optionally render the frame around the active element on the screen
+                if state.active_element.is_some() {
+                    self.process_highlighting(state);
+                }
+
                 if let Some(active_element) = &state.active_element {
-                    
-                    // Optionally render the frame around the active element on the screen
-                    if self.highlighting {
-                        let left: f32 = active_element.get_element().get_bounding_rectangle().get_left() as f32 * self.app_context.screen_scale;
-                        let top: f32 = active_element.get_element().get_bounding_rectangle().get_top() as f32 * self.app_context.screen_scale;
-                        let right: f32 = active_element.get_element().get_bounding_rectangle().get_right() as f32 * self.app_context.screen_scale;
-                        let bottom: f32 = active_element.get_element().get_bounding_rectangle().get_bottom() as f32 * self.app_context.screen_scale;
+                    // // Optionally render the frame around the active element on the screen
+                    // if self.highlighting {
+                    //     let left: f32 = active_element.get_element().get_bounding_rectangle().get_left() as f32 * self.app_context.screen_scale;
+                    //     let top: f32 = active_element.get_element().get_bounding_rectangle().get_top() as f32 * self.app_context.screen_scale;
+                    //     let right: f32 = active_element.get_element().get_bounding_rectangle().get_right() as f32 * self.app_context.screen_scale;
+                    //     let bottom: f32 = active_element.get_element().get_bounding_rectangle().get_bottom() as f32 * self.app_context.screen_scale;
 
-                        let rect: RECT = RECT { 
-                            left: left as i32, 
-                            top: top as i32, 
-                            right: right as i32, 
-                            bottom: bottom as i32, 
-                        };
+                    //     let rect: RECT = RECT { 
+                    //         left: left as i32, 
+                    //         top: top as i32, 
+                    //         right: right as i32, 
+                    //         bottom: bottom as i32, 
+                    //     };
                         
-                        if let Some(prev_element) = &state.prev_element {
-                            let prev_left: f32 = prev_element.get_element().get_bounding_rectangle().get_left() as f32 * self.app_context.screen_scale;
-                            let prev_top: f32 = prev_element.get_element().get_bounding_rectangle().get_top() as f32 * self.app_context.screen_scale;
-                            let prev_right: f32 = prev_element.get_element().get_bounding_rectangle().get_right() as f32 * self.app_context.screen_scale;
-                            let prev_bottom: f32 = prev_element.get_element().get_bounding_rectangle().get_bottom() as f32 * self.app_context.screen_scale;
+                    //     if let Some(prev_element) = &state.prev_element {
+                    //         let prev_left: f32 = prev_element.get_element().get_bounding_rectangle().get_left() as f32 * self.app_context.screen_scale;
+                    //         let prev_top: f32 = prev_element.get_element().get_bounding_rectangle().get_top() as f32 * self.app_context.screen_scale;
+                    //         let prev_right: f32 = prev_element.get_element().get_bounding_rectangle().get_right() as f32 * self.app_context.screen_scale;
+                    //         let prev_bottom: f32 = prev_element.get_element().get_bounding_rectangle().get_bottom() as f32 * self.app_context.screen_scale;
 
-                            let prev_rect: RECT = RECT {
-                                left: prev_left as i32, 
-                                top: prev_top as i32, 
-                                right: prev_right as i32, 
-                                bottom: prev_bottom as i32,     
-                            };
-                            if state.clear_frame { //rect != prev_rect && 
-                                printfmt!("Cleanup needed - new: {:?} vs old: {:?}", rect, prev_rect);
-                                rectangle::clear_frame(prev_rect).unwrap();
-                                rectangle::draw_frame(rect, 4).unwrap();
-                                state.clear_frame = false;
-                            } else {
-                                rectangle::draw_frame(rect, 4).unwrap();
-                            }
-                        } else {
-                            rectangle::draw_frame(rect, 4).unwrap();
-                        }
-                    } 
+                    //         let prev_rect: RECT = RECT {
+                    //             left: prev_left as i32, 
+                    //             top: prev_top as i32, 
+                    //             right: prev_right as i32, 
+                    //             bottom: prev_bottom as i32,     
+                    //         };
+                    //         if state.clear_frame { //rect != prev_rect && 
+                    //             printfmt!("Cleanup needed - new: {:?} vs old: {:?}", rect, prev_rect);
+                    //             rectangle::clear_frame(prev_rect).unwrap();
+                    //             rectangle::draw_frame(rect, 4).unwrap();
+                    //             state.clear_frame = false;
+                    //         } else {
+                    //             rectangle::draw_frame(rect, 4).unwrap();
+                    //         }
+                    //     } else {
+                    //         rectangle::draw_frame(rect, 4).unwrap();
+                    //     }
+                    // } 
                     
                     // display the element properties 
                     egui::Grid::new("some_unique_id").min_col_width(100.0).max_col_width(800.0)
@@ -723,7 +742,7 @@ impl UIExplorer {
     }
 
     #[inline(always)]
-    fn render_xpath_screen(&mut self, ctx: &egui::Context) {
+    fn render_xpath_screen(&mut self, ctx: &egui::Context, state: &mut TreeState) {
 
         // Store the input in a struct field to persist between frames
         if self.xpath_input.is_none() {
@@ -790,7 +809,14 @@ impl UIExplorer {
                     } else {
                         itms = outcome.get_result_items().iter().map(|s| s.get_item_xml()).collect::<Vec<_>>().join("\n");
                     }
-                                        
+
+                    // if single item found, set flag to do the highlighting (if highlighting is enabled)
+                    if res_cnt == 1 {
+                        self.xpath_highlighting = true; 
+                    } else {
+                        self.xpath_highlighting = false;
+                    }
+
                     ui.label(item_cnt);
                     ui.add_space(6.0);
                     ui.label("Matching elements:");
@@ -826,6 +852,28 @@ impl UIExplorer {
                 }
             } 
         });
+
+        // if do_highligting is true, set active element to found item and render the 
+        // frame around the active element on the screen (if highlighting is enabled)
+        if self.xpath_highlighting {
+            if let Some(elem) = self.ui_tree.get_element_by_xpath(xpath_input.as_str()) {
+                // printfmt!("Element found by xpath: {}", elem.get_name());
+                let runtime_id = elem.get_runtime_id().iter().map(|x| x.to_string()).collect::<Vec<String>>().join("-");
+                if let Some(node) = self.ui_tree.get_tree().get_element_by_runtime_id(runtime_id.as_str()) {
+                    let idx = node.index;
+                    // printfmt!("Index in tree: {}", idx);
+                    // update the state with the new active element
+                    state.update_state(elem.clone(), idx);
+                    self.process_highlighting(state);
+                } else {
+                    // printfmt!("Element not found in tree by runtime id");
+                }
+            } else {
+                // printfmt!("No element found by xpath");
+            }
+        }
+
+
     }
 
 
@@ -865,6 +913,52 @@ impl UIExplorer {
                 }
             }
             _ => (),
+        }
+    }
+
+
+    #[inline(always)]
+    fn process_highlighting(&mut self, state: &mut TreeState) {
+        // Optionally render the frame around the active element on the screen
+        if self.highlighting {
+            
+            let active_element = state.active_element.as_ref().unwrap();
+            
+            let left: f32 = active_element.get_element().get_bounding_rectangle().get_left() as f32 * self.app_context.screen_scale;
+            let top: f32 = active_element.get_element().get_bounding_rectangle().get_top() as f32 * self.app_context.screen_scale;
+            let right: f32 = active_element.get_element().get_bounding_rectangle().get_right() as f32 * self.app_context.screen_scale;
+            let bottom: f32 = active_element.get_element().get_bounding_rectangle().get_bottom() as f32 * self.app_context.screen_scale;
+
+            let rect: RECT = RECT { 
+                left: left as i32, 
+                top: top as i32, 
+                right: right as i32, 
+                bottom: bottom as i32, 
+            };
+            
+            if let Some(prev_element) = &state.prev_element {
+                let prev_left: f32 = prev_element.get_element().get_bounding_rectangle().get_left() as f32 * self.app_context.screen_scale;
+                let prev_top: f32 = prev_element.get_element().get_bounding_rectangle().get_top() as f32 * self.app_context.screen_scale;
+                let prev_right: f32 = prev_element.get_element().get_bounding_rectangle().get_right() as f32 * self.app_context.screen_scale;
+                let prev_bottom: f32 = prev_element.get_element().get_bounding_rectangle().get_bottom() as f32 * self.app_context.screen_scale;
+
+                let prev_rect: RECT = RECT {
+                    left: prev_left as i32, 
+                    top: prev_top as i32, 
+                    right: prev_right as i32, 
+                    bottom: prev_bottom as i32,     
+                };
+                if state.clear_frame { //rect != prev_rect && 
+                    printfmt!("Cleanup needed - new: {:?} vs old: {:?}", rect, prev_rect);
+                    rectangle::clear_frame(prev_rect).unwrap();
+                    rectangle::draw_frame(rect, 4).unwrap();
+                    state.clear_frame = false;
+                } else {
+                    rectangle::draw_frame(rect, 4).unwrap();
+                }
+            } else {
+                rectangle::draw_frame(rect, 4).unwrap();
+            }
         }
     }
 
@@ -983,7 +1077,7 @@ impl eframe::App for UIExplorer {
             },
             DisplayMode::XpathTest => {
                 // Xpath testing screen
-                self.render_xpath_screen(ctx);
+                self.render_xpath_screen(ctx, &mut state);
             }
         }
 
