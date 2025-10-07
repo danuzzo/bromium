@@ -1,5 +1,7 @@
 instructions.md
 test_bromium.py
+rename.sh*
+undo_rename.sh*
 
 # The compiled output
 /target
