@@ -1,0 +1,3 @@
+git archive --format=zip --output=project.zip HEAD
+This is the cleanest approach and only includes tracked files. 
+Then transfer the zip as it is
