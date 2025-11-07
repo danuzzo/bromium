@@ -248,16 +248,77 @@ impl Default for Element {
 
 fn convert_to_ui_element(element: &Element) -> Result<UIElement, uiautomation::Error> {
     debug!("Element::convert_to_ui_element called.");
-    // first try to get the element by runtime id
+
+    // First attempt: try to get the element by runtime id
     if let Some(ui_element) = get_ui_element_by_runtimeid(element.get_runtime_id()) {
-        debug!("Element found by runtime id.");
+        debug!("Element found by runtime id on first attempt.");
         return Ok(ui_element);
-    } else {
-        // TODO: This is a fallback in case the runtime id method fails.
-        // If we end up here, it means the element is stale. We should refresh the UI tree and try again.
-        error!("Element not found.");
-        return Err(uiautomation::Error::new(uiautomation::errors::ERR_NOTFOUND, "could not find element"));
     }
+
+    // Element not found - it may be stale. Check if auto-refresh is enabled.
+    warn!("Element not found by runtime id. Element may be stale.");
+
+    // Check if auto-refresh is enabled
+    let auto_refresh_enabled = {
+        let driver_guard = WINDRIVER.lock().unwrap();
+        driver_guard.as_ref().map(|d| d.auto_refresh_on_stale).unwrap_or(false)
+    };
+
+    if !auto_refresh_enabled {
+        error!("Element not found and auto-refresh is disabled.");
+        return Err(uiautomation::Error::new(
+            uiautomation::errors::ERR_NOTFOUND,
+            "Element not found. Try calling driver.refresh() or enable auto-refresh with driver.set_auto_refresh(True)"
+        ));
+    }
+
+    info!("Auto-refresh enabled. Attempting to refresh UI tree and retry...");
+
+    // Access the global WinDriver instance and refresh it
+    let mut driver_guard = WINDRIVER.lock().unwrap();
+    if let Some(driver) = driver_guard.as_mut() {
+        // Get a fresh UI tree
+        let (tx, rx): (Sender<_>, Receiver<UITreeXML>) = channel();
+        thread::spawn(|| {
+            debug!("Spawning thread to refresh UI tree for stale element recovery");
+            get_all_elements_xml(tx, None, None);
+        });
+
+        match rx.recv() {
+            Ok(new_tree) => {
+                driver.ui_tree = new_tree;
+                driver.tree_needs_update = false;
+                info!("UI tree refreshed successfully for stale element recovery");
+            }
+            Err(e) => {
+                error!("Failed to receive refreshed UI tree: {:?}", e);
+                return Err(uiautomation::Error::new(
+                    uiautomation::errors::ERR_NOTFOUND,
+                    "Failed to refresh UI tree for stale element"
+                ));
+            }
+        }
+    } else {
+        error!("WinDriver instance not found in global state");
+        return Err(uiautomation::Error::new(
+            uiautomation::errors::ERR_NOTFOUND,
+            "WinDriver instance not available for refresh"
+        ));
+    }
+    drop(driver_guard);
+
+    // Second attempt: try to find the element again after refresh
+    if let Some(ui_element) = get_ui_element_by_runtimeid(element.get_runtime_id()) {
+        info!("Element found by runtime id after UI tree refresh.");
+        return Ok(ui_element);
+    }
+
+    // Still not found after refresh - element truly doesn't exist
+    error!("Element not found even after UI tree refresh. Element may have been removed from the UI.");
+    Err(uiautomation::Error::new(
+        uiautomation::errors::ERR_NOTFOUND,
+        "Element not found even after automatic UI tree refresh"
+    ))
 }
 
 
@@ -268,7 +329,7 @@ pub struct WinDriver {
     timeout_ms: u64,
     ui_tree: UITreeXML,
     tree_needs_update: bool,
-    // TODO: Add screen context to get scaling factor later on
+    auto_refresh_on_stale: bool,
 }
 
 #[pymethods]
@@ -287,17 +348,27 @@ impl WinDriver {
         
         let ui_tree: UITreeXML = rx.recv().unwrap();
         debug!("UI tree received with {} elements", ui_tree.get_elements().len());
-        
-        let driver = WinDriver { timeout_ms, ui_tree, tree_needs_update: false };
+
+        let driver = WinDriver {
+            timeout_ms,
+            ui_tree,
+            tree_needs_update: false,
+            auto_refresh_on_stale: true, // Enable auto-refresh by default
+        };
 
         *WINDRIVER.lock().unwrap() = Some(driver.clone());
 
-        info!("WinDriver successfully created");
+        info!("WinDriver successfully created with auto-refresh enabled");
         Ok(driver)
     }
 
     pub fn __repr__(&self) -> PyResult<String> {
-        PyResult::Ok(format!("<WinDriver timeout={}>, ui_tree={{object}}, needs_update={}", self.timeout_ms, self.tree_needs_update))
+        PyResult::Ok(format!(
+            "<WinDriver timeout={}ms, auto_refresh={}, elements={}>",
+            self.timeout_ms,
+            self.auto_refresh_on_stale,
+            self.ui_tree.get_elements().len()
+        ))
     }
 
     pub fn __str__(&self) -> PyResult<String> {
@@ -310,6 +381,28 @@ impl WinDriver {
 
     pub fn set_timeout(&mut self, timeout_ms: u64) {
         self.timeout_ms = timeout_ms;
+    }
+
+    /// Get the current auto-refresh setting
+    ///
+    /// Returns:
+    ///     bool: True if auto-refresh is enabled, False otherwise
+    pub fn get_auto_refresh(&self) -> bool {
+        self.auto_refresh_on_stale
+    }
+
+    /// Enable or disable automatic UI tree refresh when stale elements are detected
+    ///
+    /// When enabled (default), the library will automatically refresh the UI tree
+    /// and retry operations when an element becomes stale.
+    ///
+    /// Args:
+    ///     enabled (bool): True to enable auto-refresh, False to disable
+    pub fn set_auto_refresh(&mut self, enabled: bool) {
+        self.auto_refresh_on_stale = enabled;
+        // Update the global instance as well
+        *WINDRIVER.lock().unwrap() = Some(self.clone());
+        info!("Auto-refresh on stale elements set to: {}", enabled);
     }
 
     pub fn get_curser_pos(&self) -> PyResult<(i32, i32)> {
@@ -444,7 +537,14 @@ impl WinDriver {
         PyResult::Ok(result)
     }
 
-    fn refresh(&mut self) -> PyResult<()> {
+    /// Refresh the UI tree to capture the current state of the screen
+    ///
+    /// This method should be called when the UI has changed significantly
+    /// or when you encounter stale element errors.
+    ///
+    /// Returns:
+    ///     None
+    pub fn refresh(&mut self) -> PyResult<()> {
         debug!("WinDriver::refresh called.");
         // get the ui tree in a separate thread
         let (tx, rx): (Sender<_>, Receiver<UITreeXML>) = channel();
@@ -453,17 +553,17 @@ impl WinDriver {
             get_all_elements_xml(tx, None, None);
         });
         info!("Spawned separate thread to refresh ui tree");
-        
+
         let ui_tree: UITreeXML = rx.recv().unwrap();
-        
+
         self.ui_tree = ui_tree;
         self.tree_needs_update = false;
-        
+
         {
             *WINDRIVER.lock().unwrap() = Some(self.clone());
         }
 
-        info!("WinDriver successfully created");
+        info!("UI tree refreshed successfully");
         PyResult::Ok(())
     }
 }
