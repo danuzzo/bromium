@@ -47,6 +47,27 @@ if success:
     print("Calculator is now in focus")
 ```
 
+## Singleton Pattern
+
+**IMPORTANT:** Bromium uses a singleton pattern - only **one WinDriver instance** can exist at a time.
+
+```python
+# ✅ Good: Create one driver
+driver = WinDriver(timeout=5)
+
+# ❌ Bad: This will raise an error
+driver2 = WinDriver(timeout=5)  # RuntimeError: Only one WinDriver instance can exist
+
+# ✅ Good: Close the first driver before creating a new one
+driver.close()
+driver2 = WinDriver(timeout=5)  # Now this works
+
+# ✅ Best: Reuse the same driver throughout your script
+driver.refresh()  # Update the UI tree instead of creating a new driver
+```
+
+**Why?** This ensures all elements always use the correct, synchronized UI tree.
+
 ## Staleness Handling
 
 Bromium automatically handles stale elements (elements that no longer exist in the UI). When an element becomes stale:
@@ -83,6 +104,7 @@ The main class for interacting with Windows UI elements.
 - `get_screen_context() -> ScreenContext`: Get screen size and scaling information
 - `launch_or_activate_app() -> bool`: Launches a new application or activates an existing window
 - `refresh()`: Manually refresh the UI tree to capture current screen state
+- `close()`: Close the driver and free the singleton instance
 - `get_auto_refresh() -> bool`: Check if auto-refresh is enabled
 - `set_auto_refresh(enabled: bool)`: Enable or disable automatic staleness recovery
 

@@ -380,6 +380,25 @@ impl WinDriver {
     pub fn new(timeout_ms: u64) -> PyResult<Self> {
         debug!("Creating new WinDriver with timeout: {}ms", timeout_ms);
 
+        // FIX BUG #6: Enforce single instance pattern
+        // Check if a WinDriver instance already exists
+        let existing_driver = match WINDRIVER.lock() {
+            Ok(guard) => guard.is_some(),
+            Err(poisoned) => {
+                warn!("WINDRIVER lock is poisoned during instance check, recovering...");
+                poisoned.into_inner().is_some()
+            }
+        };
+
+        if existing_driver {
+            error!("Attempted to create multiple WinDriver instances");
+            return Err(pyo3::exceptions::PyRuntimeError::new_err(
+                "Only one WinDriver instance can exist at a time. \
+                 Please close the existing driver with driver.close() before creating a new one, \
+                 or reuse the existing driver instance."
+            ));
+        }
+
         // get the ui tree in a separate thread
         let (tx, rx): (Sender<_>, Receiver<UITreeXML>) = channel();
         thread::spawn(|| {
@@ -421,7 +440,7 @@ impl WinDriver {
             }
         }
 
-        info!("WinDriver successfully created with auto-refresh enabled");
+        info!("WinDriver successfully created with auto-refresh enabled (singleton instance)");
         Ok(driver)
     }
 
@@ -683,6 +702,35 @@ impl WinDriver {
         }
 
         info!("UI tree refreshed successfully");
+        PyResult::Ok(())
+    }
+
+    /// Close the WinDriver instance and free the global singleton
+    ///
+    /// This method clears the global WinDriver instance, allowing a new
+    /// WinDriver to be created later if needed. After calling close(),
+    /// this driver instance and any elements created from it should not
+    /// be used.
+    ///
+    /// Returns:
+    ///     None
+    pub fn close(&mut self) -> PyResult<()> {
+        debug!("WinDriver::close called.");
+
+        // Clear the global WINDRIVER instance
+        match WINDRIVER.lock() {
+            Ok(mut guard) => {
+                *guard = None;
+                info!("WinDriver instance closed and global singleton cleared");
+            }
+            Err(poisoned) => {
+                warn!("WINDRIVER lock is poisoned during close, recovering...");
+                let mut guard = poisoned.into_inner();
+                *guard = None;
+                info!("WinDriver instance closed and global singleton cleared (after lock recovery)");
+            }
+        }
+
         PyResult::Ok(())
     }
 }
