@@ -1,6 +1,7 @@
 use std::thread;
 use std::sync::Mutex;
 use std::sync::mpsc::{channel, Receiver, Sender};
+use std::time::Duration;
 
 use pyo3::prelude::*;
 // use uiautomation::types::Handle;
@@ -260,7 +261,13 @@ fn convert_to_ui_element(element: &Element) -> Result<UIElement, uiautomation::E
 
     // Check if auto-refresh is enabled
     let auto_refresh_enabled = {
-        let driver_guard = WINDRIVER.lock().unwrap();
+        let driver_guard = match WINDRIVER.lock() {
+            Ok(guard) => guard,
+            Err(poisoned) => {
+                error!("WINDRIVER lock is poisoned, recovering...");
+                poisoned.into_inner()
+            }
+        };
         driver_guard.as_ref().map(|d| d.auto_refresh_on_stale).unwrap_or(false)
     };
 
@@ -274,32 +281,44 @@ fn convert_to_ui_element(element: &Element) -> Result<UIElement, uiautomation::E
 
     info!("Auto-refresh enabled. Attempting to refresh UI tree and retry...");
 
-    // Access the global WinDriver instance and refresh it
-    let mut driver_guard = WINDRIVER.lock().unwrap();
-    if let Some(driver) = driver_guard.as_mut() {
-        // Get a fresh UI tree
-        let (tx, rx): (Sender<_>, Receiver<UITreeXML>) = channel();
-        thread::spawn(|| {
-            debug!("Spawning thread to refresh UI tree for stale element recovery");
-            get_all_elements_xml(tx, None, None);
-        });
+    // FIX BUG #3 & #4: Start refresh outside the lock, use timeout on recv()
+    let (tx, rx): (Sender<_>, Receiver<UITreeXML>) = channel();
+    thread::spawn(|| {
+        debug!("Spawning thread to refresh UI tree for stale element recovery");
+        get_all_elements_xml(tx, None, None);
+    });
 
-        match rx.recv() {
-            Ok(new_tree) => {
-                driver.ui_tree = new_tree;
-                driver.tree_needs_update = false;
-                info!("UI tree refreshed successfully for stale element recovery");
-            }
-            Err(e) => {
-                error!("Failed to receive refreshed UI tree: {:?}", e);
-                return Err(uiautomation::Error::new(
-                    uiautomation::errors::ERR_NOTFOUND,
-                    "Failed to refresh UI tree for stale element"
-                ));
-            }
+    // Wait for UI tree with timeout (10 seconds)
+    let new_tree = match rx.recv_timeout(Duration::from_secs(10)) {
+        Ok(tree) => {
+            info!("UI tree refreshed successfully for stale element recovery");
+            tree
         }
+        Err(e) => {
+            error!("Failed to receive refreshed UI tree within timeout: {:?}", e);
+            return Err(uiautomation::Error::new(
+                uiautomation::errors::ERR_NOTFOUND,
+                "Timeout waiting for UI tree refresh"
+            ));
+        }
+    };
+
+    // FIX BUG #5: Handle lock errors properly
+    // Update the global WinDriver with the new tree
+    let mut driver_guard = match WINDRIVER.lock() {
+        Ok(guard) => guard,
+        Err(poisoned) => {
+            error!("WINDRIVER lock is poisoned during refresh, recovering...");
+            poisoned.into_inner()
+        }
+    };
+
+    if let Some(driver) = driver_guard.as_mut() {
+        driver.ui_tree = new_tree;
+        driver.tree_needs_update = false;
     } else {
         error!("WinDriver instance not found in global state");
+        drop(driver_guard);
         return Err(uiautomation::Error::new(
             uiautomation::errors::ERR_NOTFOUND,
             "WinDriver instance not available for refresh"
@@ -307,7 +326,30 @@ fn convert_to_ui_element(element: &Element) -> Result<UIElement, uiautomation::E
     }
     drop(driver_guard);
 
-    // Second attempt: try to find the element again after refresh
+    // FIX BUG #2: Try to recover element by XPath instead of runtime_id
+    // This handles the case where UI was recreated with new runtime IDs
+    info!("Attempting to find element by XPath after refresh: {}", element.get_xpath());
+
+    let driver_guard = match WINDRIVER.lock() {
+        Ok(guard) => guard,
+        Err(poisoned) => poisoned.into_inner()
+    };
+
+    if let Some(driver) = driver_guard.as_ref() {
+        if let Some(refreshed_elem) = driver.ui_tree.get_element_by_xpath(element.get_xpath().as_str()) {
+            // Found element by XPath! Get the new runtime_id and find the UIElement
+            let new_runtime_id = refreshed_elem.get_runtime_id().clone();
+            drop(driver_guard);
+
+            if let Some(ui_element) = get_ui_element_by_runtimeid(new_runtime_id) {
+                info!("Element found by XPath after UI tree refresh (runtime_id may have changed).");
+                return Ok(ui_element);
+            }
+        }
+    }
+    drop(driver_guard);
+
+    // Fallback: try the old runtime_id in case it's still valid
     if let Some(ui_element) = get_ui_element_by_runtimeid(element.get_runtime_id()) {
         info!("Element found by runtime id after UI tree refresh.");
         return Ok(ui_element);
@@ -345,9 +387,20 @@ impl WinDriver {
             get_all_elements_xml(tx, None, None);
         });
         info!("Spawned separate thread to get ui tree");
-        
-        let ui_tree: UITreeXML = rx.recv().unwrap();
-        debug!("UI tree received with {} elements", ui_tree.get_elements().len());
+
+        // FIX BUG #4: Add timeout to recv()
+        let ui_tree: UITreeXML = match rx.recv_timeout(Duration::from_secs(30)) {
+            Ok(tree) => {
+                debug!("UI tree received with {} elements", tree.get_elements().len());
+                tree
+            }
+            Err(e) => {
+                error!("Timeout waiting for initial UI tree: {:?}", e);
+                return Err(pyo3::exceptions::PyTimeoutError::new_err(
+                    "Timeout waiting for UI tree initialization (30s)"
+                ));
+            }
+        };
 
         let driver = WinDriver {
             timeout_ms,
@@ -356,7 +409,17 @@ impl WinDriver {
             auto_refresh_on_stale: true, // Enable auto-refresh by default
         };
 
-        *WINDRIVER.lock().unwrap() = Some(driver.clone());
+        // FIX BUG #5: Handle lock errors properly
+        match WINDRIVER.lock() {
+            Ok(mut guard) => {
+                *guard = Some(driver.clone());
+            }
+            Err(poisoned) => {
+                error!("WINDRIVER lock is poisoned, recovering...");
+                let mut guard = poisoned.into_inner();
+                *guard = Some(driver.clone());
+            }
+        }
 
         info!("WinDriver successfully created with auto-refresh enabled");
         Ok(driver)
@@ -400,8 +463,17 @@ impl WinDriver {
     ///     enabled (bool): True to enable auto-refresh, False to disable
     pub fn set_auto_refresh(&mut self, enabled: bool) {
         self.auto_refresh_on_stale = enabled;
-        // Update the global instance as well
-        *WINDRIVER.lock().unwrap() = Some(self.clone());
+        // FIX BUG #5: Update the global instance with proper error handling
+        match WINDRIVER.lock() {
+            Ok(mut guard) => {
+                *guard = Some(self.clone());
+            }
+            Err(poisoned) => {
+                error!("WINDRIVER lock is poisoned, recovering...");
+                let mut guard = poisoned.into_inner();
+                *guard = Some(self.clone());
+            }
+        }
         info!("Auto-refresh on stale elements set to: {}", enabled);
     }
 
@@ -416,11 +488,27 @@ impl WinDriver {
 
     pub fn get_ui_element(&self, x: i32, y: i32) -> PyResult<Element> {
         debug!("WinDriver::get_ui_element called for coordinates: ({}, {})", x, y);
-    
+
         let cursor_position = POINT { x, y };
 
-        if let Some(ui_element_in_tree) = crate::rectangle::get_point_bounding_rect(&cursor_position, self.ui_tree.get_elements()) {
-            let xpath = self.ui_tree.get_xpath_for_element(ui_element_in_tree.get_tree_index(), true);
+        // FIX BUG #1: Read from global WINDRIVER to get most recent tree
+        let driver_guard = match WINDRIVER.lock() {
+            Ok(guard) => guard,
+            Err(poisoned) => {
+                error!("WINDRIVER lock is poisoned, recovering...");
+                poisoned.into_inner()
+            }
+        };
+
+        let ui_tree = if let Some(driver) = driver_guard.as_ref() {
+            &driver.ui_tree
+        } else {
+            warn!("No WinDriver instance in global state, using local tree");
+            &self.ui_tree
+        };
+
+        if let Some(ui_element_in_tree) = crate::rectangle::get_point_bounding_rect(&cursor_position, ui_tree.get_elements()) {
+            let xpath = ui_tree.get_xpath_for_element(ui_element_in_tree.get_tree_index(), true);
             trace!("Found element with xpath: {}", xpath);
 
             let ui_element_props = ui_element_in_tree.get_element_props();
@@ -444,15 +532,29 @@ impl WinDriver {
 
     fn get_ui_element_by_xpath(&self, xpath: String) -> PyResult<Element> {
         debug!("WinDriver::get_ui_element_by_xpath called.");
-        
-        // let ui_elem = get_element_by_xpath(xpath.clone(), &self.ui_tree);
-        let ui_elem = self.ui_tree.get_element_by_xpath(xpath.as_str());
+
+        // FIX BUG #1: Read from global WINDRIVER to get most recent tree
+        let driver_guard = match WINDRIVER.lock() {
+            Ok(guard) => guard,
+            Err(poisoned) => {
+                error!("WINDRIVER lock is poisoned, recovering...");
+                poisoned.into_inner()
+            }
+        };
+
+        let ui_tree = if let Some(driver) = driver_guard.as_ref() {
+            &driver.ui_tree
+        } else {
+            warn!("No WinDriver instance in global state, using local tree");
+            &self.ui_tree
+        };
+
+        let ui_elem = ui_tree.get_element_by_xpath(xpath.as_str());
         if ui_elem.is_none() {
             return PyResult::Err(pyo3::exceptions::PyValueError::new_err("Element not found"));
         }
-        
+
         let element = ui_elem.unwrap();
-        // PyResult::Ok(element)
         let name = element.get_name().clone();
         let xpath = xpath.clone();
         let handle = element.get_handle();
@@ -554,13 +656,30 @@ impl WinDriver {
         });
         info!("Spawned separate thread to refresh ui tree");
 
-        let ui_tree: UITreeXML = rx.recv().unwrap();
+        // FIX BUG #4: Add timeout to recv()
+        let ui_tree: UITreeXML = match rx.recv_timeout(Duration::from_secs(30)) {
+            Ok(tree) => tree,
+            Err(e) => {
+                error!("Timeout waiting for UI tree refresh: {:?}", e);
+                return Err(pyo3::exceptions::PyTimeoutError::new_err(
+                    "Timeout waiting for UI tree refresh (30s)"
+                ));
+            }
+        };
 
         self.ui_tree = ui_tree;
         self.tree_needs_update = false;
 
-        {
-            *WINDRIVER.lock().unwrap() = Some(self.clone());
+        // FIX BUG #5: Handle lock errors properly
+        match WINDRIVER.lock() {
+            Ok(mut guard) => {
+                *guard = Some(self.clone());
+            }
+            Err(poisoned) => {
+                error!("WINDRIVER lock is poisoned, recovering...");
+                let mut guard = poisoned.into_inner();
+                *guard = Some(self.clone());
+            }
         }
 
         info!("UI tree refreshed successfully");
